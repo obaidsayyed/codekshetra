@@ -79,11 +79,11 @@ class VoiceSession:
         self.state = SessionState.LISTENING
         audit_logger.info("Voice session listening dynamically for speech...")
         audio_data = self.audio.record_speech_dynamic(
-            max_duration_sec=45.0,
-            silence_timeout_sec=1.0,
-            initial_silence_timeout_sec=1.5,
-            min_duration_sec=0.8,
-            energy_threshold=0.015,
+            max_duration_sec=60.0,
+            silence_timeout_sec=1.2,
+            initial_silence_timeout_sec=5.0,
+            min_duration_sec=0.6,
+            energy_threshold=0.008,
             on_chunk=on_chunk
         )
         if audio_data is None or len(audio_data) == 0:

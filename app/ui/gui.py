@@ -406,12 +406,8 @@ class SundayGUI:
             if status == "waiting_for_owner":
                 self._show_approval_banner(res.get("approval_id"), res.get("spoken_prompt"))
             elif res.get("spoken_message"):
+                # voice_session already spoke the message via TTS
                 self._append_log(f"SUNDAY: {res.get('spoken_message')}")
-                try:
-                    from app.voice.tts import tts
-                    tts.speak(res.get("spoken_message"))
-                except Exception:
-                    pass
             elif res.get("error"):
                 self._append_log(f"Notice: {res.get('error')}")
 
