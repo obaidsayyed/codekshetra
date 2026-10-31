@@ -3,6 +3,7 @@ Local Ollama HTTP client for SUNDAY.
 Calls localhost:11434 with capped context and strict JSON formatting.
 """
 import json
+import re
 import subprocess
 import shutil
 import time
@@ -97,10 +98,14 @@ class OllamaClient:
                         continue
                     response.raise_for_status()
                     data = response.json()
-                    content = data.get("message", {}).get("content", "")
-                    
-                    parsed = json.loads(content)
-                    return parsed
+                    content = data.get("message", {}).get("content", "").strip()
+                    try:
+                        return json.loads(content)
+                    except json.JSONDecodeError:
+                        m = re.search(r'\{.*\}', content, re.DOTALL)
+                        if m:
+                            return json.loads(m.group(0))
+                        raise
             except json.JSONDecodeError as jde:
                 audit_logger.error("Ollama returned invalid JSON: %s\nRaw output: %s", jde, content)
                 raise ValueError(f"Ollama returned malformed JSON: {str(jde)}")

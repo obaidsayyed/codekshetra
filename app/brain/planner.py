@@ -230,15 +230,20 @@ class Planner:
                     t_name = step_data.get("tool_name")
                     args = step_data.get("arguments", {})
 
-                    # If essay/document was requested, enforce Word and rich essay content
+                    # If essay/document was requested, enforce Word and preserve LLM's dynamic text
                     if any(w in obj_l for w in ["essay", "article", "in word", "drafting", "draft an essay"]):
-                        if t_name in ("create_spreadsheet", "launch_application", "create_invoice") or (t_name == "visual_open_and_type" and args.get("app_choice") != "word" and "notepad" not in obj_l):
+                        if t_name in ("create_spreadsheet", "launch_application", "create_invoice", "visual_open_and_type"):
                             t_name = "visual_open_and_type"
-                            title, doc_content, app_choice = build_document_content(objective)
+                            gen_text = args.get("text", "")
+                            gen_title = args.get("title", "")
+                            if not gen_text or len(gen_text.strip()) < 30:
+                                fallback_title, fallback_text, _ = build_document_content(objective)
+                                gen_title = gen_title or fallback_title
+                                gen_text = fallback_text
                             args = {
-                                "title": title,
-                                "text": doc_content,
-                                "app_choice": app_choice,
+                                "title": gen_title or "Essay",
+                                "text": gen_text,
+                                "app_choice": "word" if "notepad" not in obj_l else "notepad",
                                 "save_copy": True
                             }
 

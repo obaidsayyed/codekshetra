@@ -77,7 +77,7 @@ class SpeechToText:
         lang = language if language else "en"
         prompt = (
             "SUNDAY is an offline AI employee on Windows 11. Clear English speech. "
-            "Commands: create invoice in Excel, write essay in Word, Notepad, spreadsheet, "
+            "Commands: create invoice in Excel, write essay in Word, spreadsheet, "
             "open YouTube, Chrome, calculator, check battery, files, search, draft message, clear history."
         )
 

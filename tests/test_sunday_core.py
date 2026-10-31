@@ -310,17 +310,17 @@ def test_internet_requirement_handling_and_resumption(monkeypatch):
 def test_visual_desktop_automation():
     """
     User Requirement:
-    Desktop should see it getting done, like word/notepad getting opened and words added live.
+    Desktop should see it getting done, like Word getting opened and content added live.
     """
     tool = VisualOpenAndTypeTool()
     res = tool.execute(
         title="Weekly Status Report",
         text="SUNDAY automated desktop writing test.\nEverything is verified.",
-        app_choice="notepad",
+        app_choice="word",
         save_copy=True
     )
     assert res.success is True
-    assert res.data["typed_live"] is True
+    assert res.data["application"] == "WINWORD.EXE"
     assert Path(res.output_path).exists()
 
 

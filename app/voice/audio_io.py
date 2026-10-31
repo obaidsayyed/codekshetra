@@ -60,17 +60,17 @@ class AudioIO:
 
     def record_speech_dynamic(
         self,
-        max_duration_sec: float = 45.0,
-        silence_timeout_sec: float = 1.0,
-        initial_silence_timeout_sec: float = 1.5,
-        min_duration_sec: float = 0.8,
-        energy_threshold: float = 0.015,
+        max_duration_sec: float = 60.0,
+        silence_timeout_sec: float = 1.2,
+        initial_silence_timeout_sec: float = 5.0,
+        min_duration_sec: float = 0.6,
+        energy_threshold: float = 0.008,
         on_chunk: Optional[callable] = None
     ) -> Optional[np.ndarray]:
         """
         Dynamically records speech until the user finishes talking (VAD endpointing).
-        If no speech is detected within initial_silence_timeout_sec (1.5s), returns to waiting for new convo.
-        Endpoints speech after 1.0s of silence. Rejects room/fan noise below threshold.
+        Allows up to 5.0s for the user to begin speaking so commands are never prematurely cut off.
+        Endpoints speech after 1.2s of silence. Rejects room/fan noise below calibrated threshold.
         """
         if self.is_muted:
             audit_logger.warning("Dynamic record requested while muted. Capture aborted.")

@@ -143,8 +143,8 @@ class BackgroundVoiceListener:
                         chunk_int16 = (np.clip(chunk_16k, -1.0, 1.0) * 32767.0).astype(np.int16)
 
                         # Continuous Speech Buffer & VAD strictly for 'Sunday' / 'Hey Sunday'
-                        # Reject ambient noise floor (< 0.015)
-                        if rms >= 0.015:
+                        # Reject ambient noise floor (< 0.008)
+                        if rms >= 0.008:
                             speech_active = True
                             silence_after_speech_sec = 0.0
                             speech_buffer.append(chunk_int16)

@@ -67,21 +67,21 @@ def test_memory_recall_query():
 
 def test_long_sentence_natural_speech_support():
     long_instruction = (
-        "I need you to write a document in Notepad titled Meeting Notes explaining that "
+        "I need you to write a document in Word titled Meeting Notes explaining that "
         "we reviewed the quarterly performance metrics and the system is operating at full efficiency offline."
     )
     res = workflow_engine.handle_objective(long_instruction)
     assert res["success"] is True
-    assert "notepad" in res["spoken_message"].lower() or "document" in res["spoken_message"].lower()
+    assert "word" in res["spoken_message"].lower() or "document" in res["spoken_message"].lower()
 
 
 def test_visual_essay_and_desktop_excel_invoice():
-    # Test essay writing
-    res_essay = workflow_engine.handle_objective("Write an essay on artificial intelligence in notepad")
+    # Test essay writing in Microsoft Word
+    res_essay = workflow_engine.handle_objective("Write an essay on artificial intelligence in word")
     assert res_essay["success"] is True
-    assert "artificial intelligence" in res_essay["spoken_message"].lower() or "essay" in res_essay["spoken_message"].lower() or "notepad" in res_essay["spoken_message"].lower()
+    assert "artificial intelligence" in res_essay["spoken_message"].lower() or "essay" in res_essay["spoken_message"].lower() or "word" in res_essay["spoken_message"].lower()
 
-    # Test spreadsheet creation
+    # Test spreadsheet creation in Microsoft Excel
     res_sheet = workflow_engine.handle_objective("Create a spreadsheet of quarterly expenses")
     assert res_sheet["success"] is True
     assert "excel" in res_sheet["spoken_message"].lower() or "spreadsheet" in res_sheet["spoken_message"].lower()
@@ -93,7 +93,7 @@ def test_spoken_thinking_phrase_and_busy_lock():
     assert plan_inv.spoken_summary is not None
     assert len(plan_inv.spoken_summary) > 5
 
-    plan_essay = planner.plan("write an essay on quantum computing in notepad")
+    plan_essay = planner.plan("write an essay on quantum computing in word")
     assert plan_essay.spoken_summary is not None
     assert len(plan_essay.spoken_summary) > 5
 

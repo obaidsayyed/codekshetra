@@ -407,6 +407,11 @@ class SundayGUI:
                 self._show_approval_banner(res.get("approval_id"), res.get("spoken_prompt"))
             elif res.get("spoken_message"):
                 self._append_log(f"SUNDAY: {res.get('spoken_message')}")
+                try:
+                    from app.voice.tts import tts
+                    tts.speak(res.get("spoken_message"))
+                except Exception:
+                    pass
             elif res.get("error"):
                 self._append_log(f"Notice: {res.get('error')}")
 
@@ -426,6 +431,11 @@ class SundayGUI:
                 self._show_approval_banner(res.get("approval_id"), res.get("spoken_prompt"))
             elif res.get("spoken_message"):
                 self._append_log(f"SUNDAY: {res.get('spoken_message')}")
+                try:
+                    from app.voice.tts import tts
+                    tts.speak(res.get("spoken_message"))
+                except Exception:
+                    pass
             elif res.get("results"):
                 for r in res.get("results"):
                     self._append_log(f"Evidence: {r.get('evidence')}")
