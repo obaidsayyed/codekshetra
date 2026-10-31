@@ -71,10 +71,10 @@ class OllamaClient:
     ) -> Dict[str, Any]:
         """
         Sends chat completion request enforcing JSON format and 4K context.
-        Attempts primary 9B model ('gemma2:9b') with fallback to 'qwen3:8b' or 'qwen2.5:3b'.
+        Attempts primary model ('qwen3:8b') with fallback to 'gemma2:9b' or 'qwen2.5:3b'.
         """
         self.ensure_running()
-        models_to_try = [self.model, "gemma2:9b", "qwen3:8b", "qwen2.5:3b"]
+        models_to_try = [self.model, "qwen3:8b", "gemma2:9b", "qwen2.5:3b"]
         seen = set()
         unique_models = [m for m in models_to_try if not (m in seen or seen.add(m))]
 

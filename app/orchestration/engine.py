@@ -138,7 +138,15 @@ class WorkflowEngine:
 
             audit_logger.info("Persisted task %s with %d steps to SQLite.", task_id, len(steps))
 
-            # 4. Execute steps sequentially
+            # 4. Speak Ollama's planned action summary before executing the steps
+            if plan.spoken_summary and not self.is_stopped:
+                try:
+                    from app.voice.tts import tts
+                    tts.speak(plan.spoken_summary)
+                except Exception as e:
+                    audit_logger.warning("Could not speak plan summary: %s", e)
+
+            # 5. Execute steps sequentially
             return self.execute_task(task_id)
         finally:
             with self._busy_lock:

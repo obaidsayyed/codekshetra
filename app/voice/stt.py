@@ -86,7 +86,7 @@ class SpeechToText:
             language=lang,
             beam_size=5,
             best_of=5,
-            temperature=[0.0, 0.2],
+            temperature=0,
             initial_prompt=prompt,
             vad_filter=True,
             vad_parameters=dict(min_silence_duration_ms=500, threshold=0.5, speech_pad_ms=250)

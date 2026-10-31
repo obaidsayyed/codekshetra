@@ -142,18 +142,11 @@ class VoiceSession:
         # Lock execution: NO MORE voice inputs until this task finishes completely
         self.is_task_executing = True
         try:
-            # 1. Spoken Thinking Feedback: Do not stay silent while planning/executing
-            thinking_phrase = self.generate_thinking_phrase(text)
-            if thinking_phrase:
-                self.state = SessionState.SPEAKING
-                # Microphone is automatically muted and turn-taking enforced during TTS
-                self.tts.speak(thinking_phrase)
-
-            # 2. Reason & Execute
+            # 1. Reason & Execute task with Ollama spoken summary and tool execution
             self.state = SessionState.THINKING
             result = self.engine.handle_objective(text)
 
-            # 3. Handle Result / Spoken Feedback via Piper TTS
+            # 2. Handle Result / Spoken Feedback via Piper TTS
             status = result.get("status")
             if status == "conversational":
                 self.state = SessionState.SPEAKING

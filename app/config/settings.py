@@ -56,7 +56,7 @@ class Settings(BaseModel):
         
     # Model and inference configuration
     ollama_url: str = "http://127.0.0.1:11434"
-    ollama_model: str = "gemma2:9b"
+    ollama_model: str = "qwen3:8b"
     ollama_num_ctx: int = 4096
     
     # STT & TTS paths (highest quality medium.en model for crisp English voice capture)

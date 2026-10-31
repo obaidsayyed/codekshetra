@@ -88,15 +88,14 @@ def test_visual_essay_and_desktop_excel_invoice():
 
 
 def test_spoken_thinking_phrase_and_busy_lock():
-    # 1. Spoken thinking phrase generation
-    phrase_inv = voice_session.generate_thinking_phrase("create an invoice for Global Corp")
-    assert "invoice" in phrase_inv.lower() or "excel" in phrase_inv.lower()
+    # 1. Dynamic spoken summary generated for tasks
+    plan_inv = planner.plan("create an invoice for Global Corp 20000 rupees")
+    assert plan_inv.spoken_summary is not None
+    assert len(plan_inv.spoken_summary) > 5
 
-    phrase_essay = voice_session.generate_thinking_phrase("write an essay on quantum computing in notepad")
-    assert "document" in phrase_essay.lower() or "drafting" in phrase_essay.lower()
-
-    phrase_app = voice_session.generate_thinking_phrase("open Chrome")
-    assert "browser" in phrase_app.lower() or "opening" in phrase_app.lower()
+    plan_essay = planner.plan("write an essay on quantum computing in notepad")
+    assert plan_essay.spoken_summary is not None
+    assert len(plan_essay.spoken_summary) > 5
 
     # 2. Busy lock prevents concurrent re-entrant execution
     workflow_engine.is_busy = True
@@ -121,11 +120,11 @@ def test_dynamic_endpointing_and_noise_filtering():
     assert hasattr(audio_io, "record_speech_dynamic")
 
 
-def test_gemma2_9b_configuration_and_medium_stt():
+def test_qwen3_8b_configuration_and_medium_stt():
     from app.config.settings import settings
     from app.voice.stt import stt
 
-    # Verify 9B model selection and medium.en STT selection
-    assert settings.ollama_model == "gemma2:9b"
+    # Verify Qwen3 8B model selection and medium.en STT selection
+    assert settings.ollama_model == "qwen3:8b"
     assert settings.whisper_model_name == "medium.en"
     assert stt.model_name in ("medium.en", "small.en", "base.en", "tiny")

@@ -106,6 +106,29 @@ def build_document_content(objective: str) -> tuple[str, str, str]:
     return (title, text, app)
 
 
+def has_action_intent(objective: str) -> bool:
+    """Checks if the user request is asking for an actual laptop task or action."""
+    obj_l = objective.lower().strip()
+    pure_queries = [
+        "who are you", "what can you do", "what did i say", "what did i just say",
+        "what was my last command", "what time is it", "what is the time",
+        "what is the date", "what date is today", "how are you", "are you offline",
+        "thank you", "thanks"
+    ]
+    if any(q in obj_l for q in pure_queries):
+        return False
+    if obj_l in ["hi", "hello", "hey sunday", "hey", "good morning", "good evening"]:
+        return False
+
+    action_keywords = [
+        "invoice", "spreadsheet", "excel", "essay", "letter", "notes", "notepad",
+        "wordpad", "word", "document", "open ", "launch ", "play ", "search ",
+        "find ", "calc", "calculator", "chrome", "edge", "youtube", "battery",
+        "create ", "write ", "make ", "type ", "draft ", "save ", "close ", "kill "
+    ]
+    return any(k in obj_l for k in action_keywords)
+
+
 class Planner:
     def __init__(self, client: OllamaClient = ollama_client, registry: ToolRegistry = tool_registry):
         self.client = client
@@ -114,7 +137,7 @@ class Planner:
     def plan(self, objective: str, context: Optional[str] = None) -> ExecutionPlan:
         """
         Creates a validated execution plan or conversational response for an objective.
-        Incorporates multi-turn context memory.
+        Incorporates multi-turn context memory and guarantees task execution.
         """
         audit_logger.info("Generating plan for objective: '%s'", objective)
 
@@ -125,22 +148,24 @@ class Planner:
             messages.append({"role": h["role"], "content": h["content"]})
         messages.append({"role": "user", "content": objective})
 
+        action_intent = has_action_intent(objective)
+
         # 2. Try Ollama LLM if healthy and accessible
         if self.client.check_health():
             try:
                 raw_plan = self.client.chat_json(messages, timeout=30.0)
 
-                # Check conversational response
-                if raw_plan.get("is_conversational"):
-                    summary = raw_plan.get("spoken_summary") or "I understand."
+                # Pure conversation requested without action intent
+                if raw_plan.get("is_conversational") and not action_intent:
+                    summary = raw_plan.get("spoken_summary") or raw_plan.get("thought") or "I understand."
                     return ExecutionPlan(
                         objective=objective,
                         is_conversational=True,
                         spoken_summary=summary
                     )
 
-                # Check ambiguity / clarification
-                if raw_plan.get("is_ambiguous"):
+                # Clarification only if no action intent
+                if raw_plan.get("is_ambiguous") and not action_intent:
                     question = raw_plan.get("clarifying_question") or "Could you please clarify your request?"
                     return ExecutionPlan(
                         objective=objective,
@@ -168,7 +193,7 @@ class Planner:
                     )
 
                 if validated_steps:
-                    summary = raw_plan.get("spoken_summary") or f"Executing plan for {objective}."
+                    summary = raw_plan.get("spoken_summary") or raw_plan.get("thought") or f"Executing plan for {objective}."
                     return ExecutionPlan(
                         objective=objective,
                         is_ambiguous=False,
@@ -178,7 +203,7 @@ class Planner:
             except Exception as e:
                 audit_logger.warning("LLM planning exception (%s). Using deterministic planner.", e)
 
-        # 3. Deterministic Fallback Planner (Context-Aware)
+        # 3. Deterministic Planner (Always executes tasks with action intent)
         return self._deterministic_plan(objective)
 
     def _deterministic_plan(self, objective: str) -> ExecutionPlan:
