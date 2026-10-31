@@ -26,6 +26,14 @@ CREATE TABLE IF NOT EXISTS conversation_turns (
     role TEXT NOT NULL,
     content TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS meeting_reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    date_str TEXT NOT NULL,
+    time_str TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -124,11 +132,59 @@ class ConversationManager:
             lines.append(f"{speaker}: {turn['content']}")
         return "\n".join(lines)
 
+    def add_meeting_reminder(self, title: str, date_str: str, time_str: str) -> Dict[str, Any]:
+        """Saves a meeting reminder to SQLite and in-memory context."""
+        now = datetime.now(timezone.utc).isoformat()
+        with self.db.transaction() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS meeting_reminders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    date_str TEXT NOT NULL,
+                    time_str TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "INSERT INTO meeting_reminders (title, date_str, time_str, created_at) VALUES (?, ?, ?, ?)",
+                (title, date_str, time_str, now)
+            )
+        reminder = {"title": title, "date": date_str, "time": time_str, "created_at": now}
+        self._last_meeting = reminder
+        audit_logger.info("Saved meeting reminder: '%s' on %s at %s", title, date_str, time_str)
+        return reminder
+
+    def get_upcoming_meetings(self, date_str: Optional[str] = None) -> List[Dict[str, Any]]:
+        with self.db.transaction() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS meeting_reminders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    date_str TEXT NOT NULL,
+                    time_str TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            if date_str:
+                cursor = conn.execute(
+                    "SELECT title, date_str, time_str FROM meeting_reminders WHERE LOWER(date_str) = LOWER(?) ORDER BY id DESC LIMIT 5",
+                    (date_str,)
+                )
+            else:
+                cursor = conn.execute("SELECT title, date_str, time_str FROM meeting_reminders ORDER BY id DESC LIMIT 5")
+            rows = cursor.fetchall()
+            return [{"title": r["title"], "date": r["date_str"], "time": r["time_str"], "time_str": r["time_str"]} for r in rows]
+
     def clear(self):
         self._cache.clear()
         self._active_document = None
         with self.db.transaction() as conn:
             conn.execute("DELETE FROM conversation_turns")
+            conn.execute("DELETE FROM meeting_reminders")
         audit_logger.info("Conversation memory cleared.")
 
 

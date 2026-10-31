@@ -92,6 +92,15 @@ class VisualOpenAndTypeTool(BaseTool):
                 workspace_docx.parent.mkdir(parents=True, exist_ok=True)
                 doc.save(str(workspace_docx))
                 output_file_path = workspace_docx
+            except PermissionError:
+                audit_logger.info("Workspace docx locked by Word. Releasing lock via taskkill...")
+                subprocess.run(["taskkill", "/IM", "WINWORD.EXE", "/F"], capture_output=True)
+                time.sleep(0.5)
+                try:
+                    doc.save(str(workspace_docx))
+                    output_file_path = workspace_docx
+                except Exception:
+                    pass
             except Exception as e:
                 audit_logger.warning("Could not save to workspace docx: %s", e)
 
@@ -100,6 +109,24 @@ class VisualOpenAndTypeTool(BaseTool):
                 output_file_path = desktop_docx
                 desktop_saved = True
                 audit_logger.info("Saved verified Word document to Desktop: %s", desktop_docx)
+            except PermissionError:
+                audit_logger.warning("Desktop file %s is locked by Microsoft Word. Releasing lock via taskkill...", desktop_docx.name)
+                try:
+                    subprocess.run(["taskkill", "/IM", "WINWORD.EXE", "/F"], capture_output=True)
+                    time.sleep(0.6)
+                    doc.save(str(desktop_docx))
+                    output_file_path = desktop_docx
+                    desktop_saved = True
+                    audit_logger.info("Successfully overwritten Word document after releasing lock: %s", desktop_docx)
+                except Exception as e2:
+                    audit_logger.warning("Could not overwrite after taskkill: %s. Saving to updated copy.", e2)
+                    alt_path = settings.user_desktop_dir / f"{clean_title}_updated.docx"
+                    try:
+                        doc.save(str(alt_path))
+                        output_file_path = alt_path
+                        desktop_saved = True
+                    except Exception:
+                        pass
             except Exception as e:
                 audit_logger.warning("Could not save directly to Desktop (%s)", e)
 

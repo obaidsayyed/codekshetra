@@ -176,8 +176,36 @@ class BackgroundVoiceListener:
                                                 "sunday", "hey sunday", "hi sunday",
                                                 "hello sunday", "ok sunday"
                                             ]
-                                            if any(w in txt_lower for w in wake_triggers):
-                                                audit_logger.info("Spoken wake detected: '%s'", txt)
+                                            is_wake = any(w in txt_lower for w in wake_triggers)
+
+                                            # Direct imperative commands and meeting requests
+                                            from app.brain.planner import extract_meeting_time
+                                            is_direct_command = (
+                                                txt_lower.startswith((
+                                                    "remember that", "remember i", "remind me", "i have a meeting",
+                                                    "today i have a meeting", "schedule", "meeting today",
+                                                    "when is my meeting", "what time is my meeting", "draft",
+                                                    "create an invoice", "make an invoice", "play ", "increase",
+                                                    "expand ", "open word", "open excel", "open chrome", "open youtube"
+                                                ))
+                                                or ("meeting" in txt_lower and extract_meeting_time(txt_lower) is not None)
+                                                or ("invoice" in txt_lower and any(w in txt_lower for w in ["create", "make", "for", "rs", "rupees"]))
+                                                or ("essay" in txt_lower and any(w in txt_lower for w in ["draft", "write", "create", "rain", "word"]))
+                                            )
+
+                                            # Check if user is replying to a recent clarifying question
+                                            from app.memory.conversation import conversation_manager
+                                            last_bot = conversation_manager.get_last_assistant_turn()
+                                            is_answering_question = False
+                                            if last_bot and "?" in last_bot.get("content", ""):
+                                                bot_q = last_bot.get("content", "").lower()
+                                                if "meeting" in bot_q and extract_meeting_time(txt_lower):
+                                                    is_answering_question = True
+                                                elif "invoice" in bot_q and len(txt_lower.split()) <= 6:
+                                                    is_answering_question = True
+
+                                            if is_wake or is_direct_command or is_answering_question:
+                                                audit_logger.info("Spoken wake/command detected: '%s'", txt)
                                                 self._handle_wake(txt)
                                                 break
 

@@ -46,6 +46,14 @@ class WorkflowEngine:
     def reset_stop(self) -> None:
         self.is_stopped = False
         self.is_busy = False
+        self._last_objective = ""
+        self._last_objective_ts = 0.0
+
+    def reset(self) -> None:
+        self.is_stopped = False
+        self.is_busy = False
+        self._last_objective = ""
+        self._last_objective_ts = 0.0
 
     def handle_objective(self, objective: str) -> Dict[str, Any]:
         """

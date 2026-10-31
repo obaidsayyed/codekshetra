@@ -11,6 +11,7 @@ import urllib.parse
 import urllib.request
 import winreg
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
@@ -353,4 +354,39 @@ class SearchLaptopFilesTool(BaseTool):
             success=True,
             data={"query": query, "matches": matches, "count": len(matches)},
             evidence=f"Found {len(matches)} files matching '{query}' on your laptop."
+        )
+
+
+class ScheduleMeetingInput(BaseModel):
+    time_str: str = Field(description="Time of the meeting (e.g. '9:00 AM', '2:30 PM').")
+    title: str = Field(default="Meeting", description="Meeting title or description.")
+    date_str: str = Field(default="today", description="Date of the meeting.")
+
+
+class ScheduleMeetingTool(BaseTool):
+    name = "schedule_meeting"
+    description = "Schedule and save a meeting reminder on the laptop."
+    input_schema = ScheduleMeetingInput
+    risk_level = RiskLevel.R0
+    execution_type = "LOCAL"
+
+    def execute(self, time_str: str, title: str = "Meeting", date_str: str = "today") -> ToolResult:
+        from app.memory.conversation import conversation_manager
+        conversation_manager.add_meeting_reminder(title, date_str, time_str)
+
+        # Also write to Desktop Meeting_Schedule.txt
+        schedule_file = settings.user_desktop_dir / "Meeting_Schedule.txt"
+        try:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            entry = f"[{timestamp}] {title} - {date_str.title()} at {time_str}\n"
+            with open(schedule_file, "a", encoding="utf-8") as f:
+                f.write(entry)
+            audit_logger.info("Appended meeting reminder to Desktop: %s", schedule_file)
+        except Exception as e:
+            audit_logger.warning("Could not write to Desktop Meeting_Schedule.txt: %s", e)
+
+        return ToolResult(
+            success=True,
+            data={"title": title, "date": date_str, "time": time_str},
+            evidence=f"Scheduled reminder for '{title}' {date_str} at {time_str}."
         )

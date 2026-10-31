@@ -15,7 +15,9 @@ from app.tools.documents import (
     CreateSpreadsheetTool, ReadPdfTool
 )
 from app.tools.windows import VisualOpenAndTypeTool
-from app.tools.laptop import LaunchAppTool, OpenFolderTool, SystemStatusTool, SearchLaptopFilesTool
+from app.tools.laptop import (
+    LaunchAppTool, OpenFolderTool, SystemStatusTool, SearchLaptopFilesTool, ScheduleMeetingTool
+)
 from app.tools.network import requires_internet, is_online
 from app.audit.logger import audit_logger
 from app.audit.events import AuditEvent
@@ -47,7 +49,8 @@ class ToolRegistry:
             LaunchAppTool(),
             OpenFolderTool(),
             SystemStatusTool(),
-            SearchLaptopFilesTool()
+            SearchLaptopFilesTool(),
+            ScheduleMeetingTool()
         ]
         for t in tools:
             self.register(t)

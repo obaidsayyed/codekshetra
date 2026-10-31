@@ -27,7 +27,13 @@ Operating Rules:
      * Output "visual_open_and_type" with title: previous topic, text: full expanded essay, app_choice: "word".
    - When the user asks to play a song/video (e.g. "play believer on youtube", "play xyz"):
      * Use "launch_application" with app_name: "play <query> on youtube". This directly launches the video to play on screen!
+   - When the user mentions having a meeting (e.g. "today I have a meeting", "I have a meeting"):
+     * If no time is specified, ask: "What time is your meeting today?" with "is_ambiguous": true, "clarifying_question": "What time is your meeting today?".
+     * If time is specified (e.g. "Remember that I have a meeting today at 9 a.m.", "Meeting at 2:30 PM"): call "schedule_meeting" with time_str: "9:00 AM" (or "2:30 PM"), title: "Meeting", date_str: "today".
+   - When the user answers a meeting timing question (e.g. "at 9 a.m.", "9 am"):
+     * Call "schedule_meeting" with time_str: "9:00 AM", title: "Meeting", date_str: "today".
 4. Computer & Laptop Tools:
+   - "schedule_meeting": time_str, title, date_str (e.g. time_str: "9:00 AM", title: "Meeting", date_str: "today"). Schedules reminders on Desktop.
    - "visual_open_and_type": title, text, app_choice ("word", "wordpad", "notepad"). For essays, articles, letters, and documents: ALWAYS use app_choice: "word" (Microsoft Word)! Never use spreadsheet or notepad for essays or word documents!
    - "create_invoice": customer_name, items (list of {description, quantity, unit_price}), tax_rate_percent, currency
    - "create_spreadsheet": filename, headers, rows (Use for budgets, tables, numerical spreadsheets only)

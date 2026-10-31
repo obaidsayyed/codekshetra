@@ -179,6 +179,42 @@ class VoiceSession:
                 self.state = SessionState.SPEAKING
                 spoken = result.get("spoken_message", "Please clarify.")
                 self.tts.speak(spoken)
+
+                # Clarification Turn: Keep microphone open for user's answer
+                if auto_listen_followup:
+                    audit_logger.info("Clarification requested. Listening for user's answer...")
+                    self.state = SessionState.LISTENING
+                    self.is_task_executing = False
+                    if self.on_status_change:
+                        self.on_status_change("listening")
+
+                    clarif_audio = self.audio.record_speech_dynamic(
+                        max_duration_sec=30.0,
+                        silence_timeout_sec=1.2,
+                        initial_silence_timeout_sec=5.0,
+                        min_duration_sec=0.5,
+                        energy_threshold=0.008,
+                        on_chunk=on_chunk
+                    )
+
+                    if clarif_audio is not None and len(clarif_audio) > 0:
+                        self.state = SessionState.TRANSCRIBING
+                        transcription = self.stt.transcribe_audio(clarif_audio)
+                        answer_text = transcription.get("text", "").strip()
+
+                        if answer_text:
+                            audit_logger.info("User answered clarification with: '%s'", answer_text)
+                            return self.process_user_utterance(
+                                answer_text,
+                                auto_listen_followup=True,
+                                on_chunk=on_chunk
+                            )
+
+                    audit_logger.info("No clarification speech detected within timeout. Returning to standby.")
+                    self.state = SessionState.IDLE
+                    if self.on_status_change:
+                        self.on_status_change("idle")
+
                 return result
 
             elif status == "completed":

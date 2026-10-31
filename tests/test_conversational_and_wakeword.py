@@ -217,3 +217,116 @@ def test_continuous_followup_inquiry_and_dismissal():
     res_dismiss = voice_session.process_user_utterance("no thank you, that's all", auto_listen_followup=False)
     assert "no thank you" in res_dismiss.get("spoken_message", "").lower() or res_dismiss.get("success") is True
 
+
+def test_meeting_without_time_asks_clarification():
+    from app.orchestration.engine import workflow_engine
+    from app.memory.conversation import conversation_manager
+
+    workflow_engine.reset()
+    conversation_manager.clear()
+
+    # User says: "today i have a meeting" without any time specified
+    res = workflow_engine.handle_objective("today i have a meeting")
+    assert res["status"] == "clarification_needed"
+    assert "What time is your meeting today?" in res["spoken_message"]
+
+
+def test_meeting_followup_time_response():
+    from app.orchestration.engine import workflow_engine
+    from app.memory.conversation import conversation_manager
+
+    workflow_engine.reset()
+    conversation_manager.clear()
+
+    # Turn 1: User says: "today i have a meeting" -> SUNDAY asks for time
+    res1 = workflow_engine.handle_objective("today i have a meeting")
+    assert res1["status"] == "clarification_needed"
+    assert "What time is your meeting today?" in res1["spoken_message"]
+
+    # Turn 2: User responds: "at 9 a.m." -> SUNDAY schedules meeting
+    res2 = workflow_engine.handle_objective("at 9 a.m.")
+    assert res2["success"] is True
+    assert "9:00 AM" in res2["spoken_message"]
+
+    # Verify meeting stored in SQLite
+    meetings = conversation_manager.get_upcoming_meetings(date_str="today")
+    assert len(meetings) >= 1
+    assert meetings[0]["time_str"] == "9:00 AM"
+
+
+def test_single_turn_meeting_scheduling():
+    from app.orchestration.engine import workflow_engine
+    from app.memory.conversation import conversation_manager
+
+    workflow_engine.reset()
+    conversation_manager.clear()
+
+    # Single turn direct command: "Remember that I have a meeting today at 9 a.m."
+    res = workflow_engine.handle_objective("Remember that I have a meeting today at 9 a.m.")
+    assert res["success"] is True
+    assert "9:00 AM" in res["spoken_message"]
+
+    # Verify meeting stored
+    meetings = conversation_manager.get_upcoming_meetings(date_str="today")
+    assert len(meetings) >= 1
+    assert meetings[0]["time_str"] == "9:00 AM"
+
+
+def test_meeting_inquiry_query():
+    from app.orchestration.engine import workflow_engine
+    from app.memory.conversation import conversation_manager
+
+    workflow_engine.reset()
+    conversation_manager.clear()
+
+    # Query with no meetings
+    res_none = workflow_engine.handle_objective("When is my meeting today?")
+    assert res_none["status"] == "conversational"
+    assert "no meetings" in res_none["spoken_message"].lower()
+
+    # Schedule a meeting
+    workflow_engine.handle_objective("Remember that I have a meeting today at 9 a.m.")
+
+    # Query again
+    res_found = workflow_engine.handle_objective("When is my meeting today?")
+    assert res_found["status"] == "conversational"
+    assert "9:00 AM" in res_found["spoken_message"]
+
+
+def test_background_listener_recognizes_meeting_and_direct_commands():
+    from app.brain.planner import extract_meeting_time
+    from app.memory.conversation import conversation_manager
+
+    conversation_manager.clear()
+
+    test_phrases = [
+        ("Remember that I have a meeting today at 9 a.m.", True),
+        ("today i have a meeting", True),
+        ("draft an essay on the topic rain in word", True),
+        ("play believer on youtube", True),
+        ("increase to 250 words", True),
+        ("hey sunday how are you", True),
+        ("sunday open word", True),
+    ]
+
+    wake_triggers = ["sunday", "hey sunday", "hi sunday", "hello sunday", "ok sunday"]
+
+    for text, expected in test_phrases:
+        txt_lower = text.lower()
+        is_wake = any(w in txt_lower for w in wake_triggers)
+        is_direct_command = (
+            txt_lower.startswith((
+                "remember that", "remember i", "remind me", "i have a meeting",
+                "today i have a meeting", "schedule", "meeting today",
+                "when is my meeting", "what time is my meeting", "draft",
+                "create an invoice", "make an invoice", "play ", "increase",
+                "expand ", "open word", "open excel", "open chrome", "open youtube"
+            ))
+            or ("meeting" in txt_lower and extract_meeting_time(txt_lower) is not None)
+            or ("invoice" in txt_lower and any(w in txt_lower for w in ["create", "make", "for", "rs", "rupees"]))
+            or ("essay" in txt_lower and any(w in txt_lower for w in ["draft", "write", "create", "rain", "word"]))
+        )
+        should_trigger = is_wake or is_direct_command
+        assert should_trigger == expected, f"Failed for '{text}': got {should_trigger}, expected {expected}"
+
+

@@ -102,6 +102,21 @@ CREATE TABLE IF NOT EXISTS memory_notes (
     expiry TEXT
 );
 
+CREATE TABLE IF NOT EXISTS conversation_turns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS meeting_reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    date_str TEXT NOT NULL,
+    time_str TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 -- Full text search for notes
 CREATE VIRTUAL TABLE IF NOT EXISTS memory_notes_fts USING fts5(
     id UNINDEXED,

@@ -31,11 +31,51 @@ class ExecutionPlan(BaseModel):
     spoken_summary: str = ""
 
 
-def extract_requested_word_count(text: str) -> Optional[int]:
-    """Extracts target word count specified in a prompt (e.g. '250 words', '300 word', 'to 250 words')."""
-    m = re.search(r'(\d+)\s*(?:words?)\b', text, re.IGNORECASE)
-    if m:
-        return int(m.group(1))
+def extract_meeting_time(text: str) -> Optional[str]:
+    """Extracts meeting time from natural language expressions (e.g. 'at 9 a.m.', '9 am', '2:30 pm', 'at 11')."""
+    t_clean = text.lower().replace(".", "").strip()
+
+    # Pattern 1: HH:MM am/pm
+    m1 = re.search(r'\b(\d{1,2}):(\d{2})\s*(am|pm)?\b', t_clean)
+    if m1:
+        hr = int(m1.group(1))
+        mn = m1.group(2)
+        ampm = m1.group(3)
+        return f"{hr}:{mn} {ampm.upper()}" if ampm else f"{hr}:{mn}"
+
+    # Pattern 2: HH am/pm (e.g. '9 am', 'at 9 am', '9am')
+    m2 = re.search(r'\b(\d{1,2})\s*(am|pm)\b', t_clean)
+    if m2:
+        return f"{int(m2.group(1))}:00 {m2.group(2).upper()}"
+
+    # Pattern 3: 'at 9' or 'at 10 oclock'
+    m3 = re.search(r'\bat\s+(\d{1,2})(?:\s*o\'?clock)?\b', t_clean)
+    if m3:
+        hr = int(m3.group(1))
+        ampm = "AM" if hr in range(7, 12) else "PM"
+        return f"{hr}:00 {ampm}"
+
+    return None
+
+
+def extract_requested_word_count(text: str, current_count: int = 250) -> Optional[int]:
+    """Finds target word count specified in a prompt, supporting absolute counts and relative additions."""
+    t_lower = text.lower()
+
+    # Relative addition: 'increase by 200 words', 'add 200 words', 'by 200 words', 'by 200'
+    m_rel = re.search(r'\bby\s+(\d+)\s*(?:words?)?\b', t_lower)
+    if m_rel:
+        return current_count + int(m_rel.group(1))
+
+    m_add = re.search(r'(?:increase|expand|add|more)\s*(?:the\s+number\s+of\s+words\s*)?(?:by\s+)?(\d+)\s*(?:words?)?', t_lower)
+    if m_add and ("by " in t_lower or "add " in t_lower or "more " in t_lower):
+        return current_count + int(m_add.group(1))
+
+    # Absolute count: 'to 250 words', '250 words', 'of 250 words'
+    m_abs = re.search(r'(\d+)\s*(?:words?)\b', t_lower)
+    if m_abs:
+        return int(m_abs.group(1))
+
     return None
 
 
@@ -95,17 +135,17 @@ def generate_comprehensive_essay(topic: str, min_words: int = 250) -> str:
         ]
 
     text = "\n\n".join(sections)
-    current_words = len(text.split())
-    if current_words < min_words:
-        enrichment = (
-            f"\n\n6. EXTENDED PERSPECTIVE AND CRITICAL ANALYSIS\n"
-            f"A deeper inspection reveals further dimensions that reinforce the paramount importance of {topic_title}. "
-            f"Across various contexts, consistent empirical evidence underscores that rigorous methodology and continuous refinement "
-            f"yield superior outcomes. By fostering an environment of proactive innovation and dedicated study, individuals and organizations "
-            f"alike unlock new frontiers of achievement, ensuring resilience against future challenges and sustaining an enduring trajectory "
-            f"of meaningful excellence."
+    para_idx = 5
+    while len(text.split()) < min_words:
+        para_idx += 1
+        text += (
+            f"\n\n{para_idx}. STRATEGIC PERSPECTIVES ON {topic_title.upper()}\n"
+            f"Continuing the comprehensive analysis of {topic_title}, sustained evaluation confirms that systematic execution "
+            f"and continuous adaptation are paramount for achieving long-term excellence. By integrating empirical feedback "
+            f"with disciplined operational workflows, practitioners consistently unlock enhanced productivity and sustainable growth. "
+            f"Furthermore, fostering collaboration and embracing forward-thinking methodologies ensures enduring value creation, "
+            f"setting a strong precedent for subsequent advancements across the entire domain."
         )
-        text += enrichment
     return text
 
 
@@ -204,7 +244,8 @@ def has_action_intent(objective: str) -> bool:
         "document", "open ", "launch ", "play ", "search ", "find ", "calc", "calculator",
         "chrome", "edge", "youtube", "battery", "create ", "write ", "make ", "type ",
         "draft ", "save ", "close ", "kill ", "increase", "expand", "extend", "words",
-        "word", "longer", "rewrite", "make it"
+        "word", "longer", "rewrite", "make it", "meeting", "appointment", "schedule",
+        "reminder", "remind"
     ]
     return any(k in obj_l for k in action_keywords)
 
@@ -250,7 +291,71 @@ class Planner:
         """
         audit_logger.info("Generating plan for objective: '%s'", objective)
 
-        # 1. Build messages with multi-turn conversation history
+        # 1. Fast Path for Meeting queries, scheduling and follow-ups
+        last_bot = conversation_manager.get_last_assistant_turn()
+        last_bot_text = last_bot["content"].lower() if last_bot else ""
+        if last_bot_text and any(q in last_bot_text for q in ["what time is your meeting", "time is your meeting", "what time is the meeting"]):
+            meeting_t = extract_meeting_time(objective)
+            if meeting_t:
+                return ExecutionPlan(
+                    objective=objective,
+                    steps=[
+                        PlannedStep(
+                            step_order=1,
+                            tool_name="schedule_meeting",
+                            arguments={"time_str": meeting_t, "title": "Meeting", "date_str": "today"},
+                            risk_level="R0"
+                        )
+                    ],
+                    spoken_summary=f"Scheduled your meeting for {meeting_t} today."
+                )
+
+        obj_l = objective.lower()
+        if any(w in obj_l for w in ["when is my meeting", "what time is my meeting", "do i have a meeting", "do i have any meetings", "what meetings do i have", "my meeting schedule"]):
+            meetings = conversation_manager.get_upcoming_meetings(date_str="today")
+            if meetings:
+                mt = meetings[0]
+                return ExecutionPlan(
+                    objective=objective,
+                    is_conversational=True,
+                    spoken_summary=f"You have a {mt['title']} scheduled for {mt['time_str']} today."
+                )
+            else:
+                return ExecutionPlan(
+                    objective=objective,
+                    is_conversational=True,
+                    spoken_summary="You have no meetings scheduled for today."
+                )
+
+        is_doc_req = any(w in obj_l for w in [
+            "write a document", "write notes", "document in word", "in word", "titled",
+            "drafting", "draft a", "type in", "write an essay", "article", "letter", "in notepad"
+        ])
+
+        if not is_doc_req and any(w in obj_l for w in ["meeting", "appointment", "schedule a meeting", "have a meeting", "meeting today"]):
+            meeting_t = extract_meeting_time(objective)
+            if meeting_t:
+                return ExecutionPlan(
+                    objective=objective,
+                    steps=[
+                        PlannedStep(
+                            step_order=1,
+                            tool_name="schedule_meeting",
+                            arguments={"time_str": meeting_t, "title": "Meeting", "date_str": "today"},
+                            risk_level="R0"
+                        )
+                    ],
+                    spoken_summary=f"Scheduled your meeting for {meeting_t} today."
+                )
+            else:
+                return ExecutionPlan(
+                    objective=objective,
+                    is_ambiguous=True,
+                    clarifying_question="What time is your meeting today?",
+                    spoken_summary="What time is your meeting today?"
+                )
+
+        # 2. Build messages with multi-turn conversation history
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         history = conversation_manager.get_recent_history(limit=6)
         for h in history:
@@ -404,8 +509,25 @@ class Planner:
 
         # 3. Multi-turn Context Resolution based on previous bot prompts
         if last_bot_text:
+            # Case M: Bot asked for meeting timing ("What time is your meeting today?")
+            if any(q in last_bot_text for q in ["what time is your meeting", "time is your meeting", "what time is the meeting"]) and not any(a in obj_clean for a in ["stop", "cancel"]):
+                meeting_t = extract_meeting_time(obj_clean)
+                if meeting_t:
+                    return ExecutionPlan(
+                        objective=objective,
+                        steps=[
+                            PlannedStep(
+                                step_order=1,
+                                tool_name="schedule_meeting",
+                                arguments={"time_str": meeting_t, "title": "Meeting", "date_str": "today"},
+                                risk_level="R0"
+                            )
+                        ],
+                        spoken_summary=f"Scheduled your meeting for {meeting_t} today."
+                    )
+
             # Case A: Bot asked about invoice details
-            if "invoice" in last_bot_text and not any(a in obj_clean for a in ["open", "launch", "search", "stop", "cancel"]):
+            if any(q in last_bot_text for q in ["who should i make the invoice for", "what is the amount", "customer name for the invoice"]) and not any(a in obj_clean for a in ["open", "launch", "search", "stop", "cancel"]):
                 cust, amt = parse_invoice_details(obj_clean)
                 if not cust:
                     cust_raw = re.sub(r'\b(rupees|rs|inr|dollars|usd|thousand|hundred|invoice|for|make|create|it|the|\d+)\b', '', obj_clean, flags=re.IGNORECASE).strip().strip(",. ")
@@ -436,7 +558,7 @@ class Planner:
                 )
 
             # Case B: Bot asked about song/video for YouTube
-            if ("youtube" in last_bot_text or "song" in last_bot_text or "video" in last_bot_text) and not any(a in obj_clean for a in ["stop", "cancel", "open word", "open chrome"]):
+            if any(q in last_bot_text for q in ["what song", "what video", "which song", "which video", "what would you like to play", "what song or video"]) and not any(a in obj_clean for a in ["stop", "cancel", "open word", "open chrome"]):
                 song_q = re.sub(r'^(play|open|search)\s*', '', obj_clean, flags=re.IGNORECASE).replace("on youtube", "").replace("youtube", "").strip()
                 target_cmd = f"play {song_q} on youtube" if song_q else "https://www.youtube.com"
                 return ExecutionPlan(
@@ -467,6 +589,53 @@ class Planner:
                         )
                     ],
                     spoken_summary=f"Opening {app} on your desktop to visually type your document now."
+                )
+
+        # 4. Meeting queries (upcoming meetings check)
+        if any(w in obj_clean for w in ["when is my meeting", "what time is my meeting", "do i have a meeting", "do i have any meetings", "what meetings do i have", "my meeting schedule", "what meetings"]):
+            meetings = conversation_manager.get_upcoming_meetings(date_str="today")
+            if meetings:
+                mt = meetings[0]
+                return ExecutionPlan(
+                    objective=objective,
+                    is_conversational=True,
+                    spoken_summary=f"You have a {mt['title']} scheduled for {mt['time_str']} today."
+                )
+            else:
+                return ExecutionPlan(
+                    objective=objective,
+                    is_conversational=True,
+                    spoken_summary="You have no meetings scheduled for today."
+                )
+
+        # 5. Meeting reminders & scheduling
+        is_doc_cmd = any(w in obj_clean for w in [
+            "write a document", "write notes", "document in word", "in word", "titled",
+            "drafting", "draft a", "type in", "write an essay", "article", "letter", "in notepad"
+        ])
+
+        if not is_doc_cmd and any(w in obj_clean for w in ["meeting", "appointment", "schedule a meeting", "have a meeting", "meeting today", "remind me that i have a meeting", "remember that i have a meeting", "remember i have a meeting", "remind me about my meeting"]):
+            meeting_t = extract_meeting_time(obj_clean)
+            if meeting_t:
+                return ExecutionPlan(
+                    objective=objective,
+                    steps=[
+                        PlannedStep(
+                            step_order=1,
+                            tool_name="schedule_meeting",
+                            arguments={"time_str": meeting_t, "title": "Meeting", "date_str": "today"},
+                            risk_level="R0"
+                        )
+                    ],
+                    spoken_summary=f"Scheduled your meeting for {meeting_t} today."
+                )
+            else:
+                # User mentioned having a meeting without specifying the time -> Ask for clarification!
+                return ExecutionPlan(
+                    objective=objective,
+                    is_ambiguous=True,
+                    clarifying_question="What time is your meeting today?",
+                    spoken_summary="What time is your meeting today?"
                 )
 
         # 4. Check for essay follow-up or word count modification (e.g. 'increase to 250 words')
