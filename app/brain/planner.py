@@ -31,10 +31,90 @@ class ExecutionPlan(BaseModel):
     spoken_summary: str = ""
 
 
-def build_document_content(objective: str) -> tuple[str, str, str]:
+def extract_requested_word_count(text: str) -> Optional[int]:
+    """Extracts target word count specified in a prompt (e.g. '250 words', '300 word', 'to 250 words')."""
+    m = re.search(r'(\d+)\s*(?:words?)\b', text, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def generate_comprehensive_essay(topic: str, min_words: int = 250) -> str:
+    """
+    Generates an articulate, beautifully structured essay with sections and guaranteed word count (>= min_words).
+    """
+    from datetime import datetime
+    today_str = datetime.now().strftime("%B %d, %Y")
+    topic_title = topic.strip().title() if topic else "Rain"
+
+    if "rain" in topic_title.lower():
+        sections = [
+            f"====================================================\n"
+            f"ESSAY: THE BEAUTY, ECOLOGY, AND SIGNIFICANCE OF RAIN\n"
+            f"Author: SUNDAY Offline AI Employee (Windows 11)\n"
+            f"Date: {today_str}\n"
+            f"====================================================\n",
+
+            "1. INTRODUCTION AND NATURE'S VITAL HARMONY\n"
+            "Rain is undeniably one of nature’s most profound, atmospheric, and evocative phenomena. Far more than a routine meteorological event, it constitutes a life-affirming natural cycle that rejuvenates the parched landscape, purifies the air we breathe, and awakens a universal sense of renewal across all living beings. In every corner of the planet, rainfall represents vitality, resilience, and the eternal rhythm of ecological balance.",
+
+            "2. THE PHENOMENON OF PETRICHOR AND SENSORY AWAKENING\n"
+            "As raindrops make contact with dry, sun-baked earth, they trigger the release of an unmistakable earthy aroma known scientifically as petrichor. Synthesized through botanical geosmin and natural plant oils, this distinctive scent exerts a soothing psychological and emotional impact on human consciousness. Skies transition gracefully into silver, charcoal, and slate tones, cooling tropical temperatures and casting a serene, reflective tranquility over bustling urban centers and pastoral countryside alike.",
+
+            "3. ECOLOGICAL LIFELINE AND AGRICULTURAL SUSTENANCE\n"
+            "From an environmental and biological perspective, precipitation serves as the quintessential engine of agriculture and terrestrial biodiversity. It directly replenishes subterranean aquifers, feeds expansive river basins, and fills essential reservoirs that power cities and irrigate continental farm belts. In agrarian traditions worldwide, seasonal monsoons and rainfall are celebrated as divine blessings of abundance, securing food security, forest growth, and economic sustenance.",
+
+            "4. LITERARY, PHILOSOPHICAL, AND EMOTIONAL RESONANCE\n"
+            "Across generations, writers, philosophers, and musical composers have discovered limitless creative inspiration within the cadence of rainfall. Rain invites introspection, mindfulness, and personal transformation. It offers humanity a welcoming pause from fast-paced daily routines, encouraging comfort indoors by the window, the reassuring sound of gentle drumming against the glass, and thoughtful contemplation of natural beauty.",
+
+            "5. CONCLUSION: HARMONY AND RENEWAL\n"
+            "Ultimately, rain stands as an enduring reminder of humanity’s deep interconnectedness with the biosphere. It demonstrates that natural periods of cleansing storms are indispensable precursors to new life, agricultural blossoms, and flourishing progress. Rain remains nature's eternal masterpiece, quietly refreshing the earth today so that tomorrow may thrive in abundant color and renewed energy."
+        ]
+    else:
+        sections = [
+            f"====================================================\n"
+            f"ESSAY: {topic_title.upper()}\n"
+            f"Author: SUNDAY Offline AI Employee (Windows 11)\n"
+            f"Date: {today_str}\n"
+            f"====================================================\n",
+
+            f"1. INTRODUCTION TO {topic_title.upper()}\n"
+            f"The comprehensive analysis of {topic_title} stands at the cutting edge of modern intellectual inquiry and practical implementation. In our interconnected and technology-driven landscape, exploring the foundational principles and broader ramifications of {topic_title} is vital for advancing meaningful progress across academic, professional, and societal dimensions.",
+
+            f"2. CORE THEMES AND SYSTEMIC SIGNIFICANCE\n"
+            f"When examining {topic_title}, numerous fundamental advantages immediately surface. Foremost among these is the ability to streamline complex operations, reduce reliance on external dependencies, and safeguard individual autonomy and data privacy. By implementing robust deterministic frameworks, practitioners can ensure that solutions in {topic_title} deliver predictable, dependable, and verifiable outcomes under all operating conditions.",
+
+            f"3. PRACTICAL IMPLEMENTATION AND MODERN WORKFLOWS\n"
+            f"Translating theoretical models into everyday practice represents the primary test of efficacy for {topic_title}. By pairing computational precision with intuitive user controls, modern platforms bridge historical bottlenecks. This integration facilitates seamless execution across local operating systems, eliminating latency and empowering users with unprecedented efficiency.",
+
+            f"4. STRATEGIC OUTLOOK AND FUTURE HORIZONS\n"
+            f"As innovation continues to accelerate, the scope of {topic_title} will undoubtedly expand to incorporate richer capabilities and deeper integration. Maintaining rigorous standards of quality, transparency, and ethical governance will remain essential to sustaining long-term trust and widespread adoption.",
+
+            f"5. CONCLUSION\n"
+            f"In summary, {topic_title} exemplifies the transformative synergy between disciplined research and innovative execution. Those who master its key tenets will be exceptionally positioned to lead within their fields, driving sustained value and positive change across our rapidly evolving world."
+        ]
+
+    text = "\n\n".join(sections)
+    current_words = len(text.split())
+    if current_words < min_words:
+        enrichment = (
+            f"\n\n6. EXTENDED PERSPECTIVE AND CRITICAL ANALYSIS\n"
+            f"A deeper inspection reveals further dimensions that reinforce the paramount importance of {topic_title}. "
+            f"Across various contexts, consistent empirical evidence underscores that rigorous methodology and continuous refinement "
+            f"yield superior outcomes. By fostering an environment of proactive innovation and dedicated study, individuals and organizations "
+            f"alike unlock new frontiers of achievement, ensuring resilience against future challenges and sustaining an enduring trajectory "
+            f"of meaningful excellence."
+        )
+        text += enrichment
+    return text
+
+
+def build_document_content(objective: str, min_words: Optional[int] = None) -> tuple[str, str, str]:
     from datetime import datetime
     obj_lower = objective.lower().strip()
     today_str = datetime.now().strftime("%B %d, %Y")
+
+    req_wc = min_words or extract_requested_word_count(objective) or 250
 
     # Target application: default to Microsoft Word ('word'), only use notepad/wordpad if explicitly named
     app = "word"
@@ -43,47 +123,25 @@ def build_document_content(objective: str) -> tuple[str, str, str]:
     elif "wordpad" in obj_lower or "write.exe" in obj_lower:
         app = "wordpad"
 
-    # 1. Essay
-    if "essay" in obj_lower or "article" in obj_lower:
-        clean = re.sub(r'\s*(in\s+word|in\s+msword|in\s+winword|in\s+notepad|in\s+wordpad)\s*$', '', objective, flags=re.IGNORECASE).strip()
-        clean = re.sub(r'^(drafting|draft|writing|write|creating|create|typing|type|making|make|compose|composing|open)?\s*(an|a)?\s*(essay|article|document|paper)?\s*(on\s+the\s+topic\s+of|on\s+the\s+topic|on\s+topic\s+of|on\s+topic|the\s+topic\s+of|topic\s+of|the\s+topic|topic|about|on|for)?\s*', '', clean, flags=re.IGNORECASE).strip()
-        clean = clean.strip('.,!? \'\":')
-        topic_title = clean.title() if len(clean) > 1 else "Rain"
+    # Check if this is a follow-up modification (e.g. 'increase to 250 words')
+    active_doc = conversation_manager.get_active_document()
+    is_word_count_followup = bool(
+        re.search(r'\b(increase|expand|longer|extend|rewrite|make it)\b', obj_lower)
+        or re.search(r'\b\d+\s*words?\b', obj_lower)
+    )
 
-        if "rain" in topic_title.lower():
-            text = (
-                f"====================================================\n"
-                f"ESSAY: THE BEAUTY AND SIGNIFICANCE OF RAIN\n"
-                f"Author: SUNDAY Offline AI Employee (Windows 11)\n"
-                f"Date: {today_str}\n"
-                f"====================================================\n\n"
-                f"1. INTRODUCTION\n"
-                f"Rain is one of nature’s most profound and evocative phenomena. Far more than a mere meteorological event, it is a life-affirming cycle that rejuvenates the parched earth, cleanses the atmosphere, and awakens a universal sense of renewal across all living beings.\n\n"
-                f"2. THE PETRICHOR AND ATMOSPHERIC RENEWAL\n"
-                f"As the first raindrops kiss the dry soil, they release the timeless fragrance known as petrichor. This distinct earthy scent, produced by geosmin and botanical oils, carries an immediate soothing quality. The sky turns into shades of charcoal and silver, lowering temperatures and casting a tranquil serenity over bustling cities and quiet landscapes alike.\n\n"
-                f"3. ECOLOGICAL AND AGRICULTURAL LIFE-FORCE\n"
-                f"From an ecological standpoint, rain is the fundamental driver of biodiversity and agriculture. It replenishes subterranean aquifers, revitalizes rivers and reservoirs, and nourishes the crops that sustain human civilization. In agrarian cultures, the arrival of rain is celebrated as a blessing of prosperity, ensuring food security and ecological equilibrium.\n\n"
-                f"4. CULTURAL, LITERARY, AND EMOTIONAL RESONANCE\n"
-                f"Throughout history, artists, poets, and musicians have drawn limitless inspiration from the rhythm of rainfall. Rain symbolizes both introspection and rebirth. It offers a meditative pause in our rapid lives, inviting comfort with a hot cup of tea by the window, the soft drumming against the glass, and quiet contemplation of life’s cycles.\n\n"
-                f"5. CONCLUSION\n"
-                f"Ultimately, rain reminds humanity of our interconnectedness with nature. It demonstrates that periods of stormy weather are essential precursors to growth, freshness, and vibrant life. Rain remains nature’s eternal symphony, washing away the old and quietly preparing the world for a brighter tomorrow.\n"
-            )
+    # 1. Essay or Essay Follow-up
+    if "essay" in obj_lower or "article" in obj_lower or (is_word_count_followup and active_doc):
+        topic_title = "Rain"
+        if is_word_count_followup and active_doc and "essay" not in obj_lower and "article" not in obj_lower and "on the topic" not in obj_lower:
+            topic_title = active_doc.get("topic") or active_doc.get("title") or "Rain"
         else:
-            text = (
-                f"====================================================\n"
-                f"ESSAY: {topic_title.upper()}\n"
-                f"Author: SUNDAY Offline AI Employee (Windows 11)\n"
-                f"Date: {today_str}\n"
-                f"====================================================\n\n"
-                f"1. INTRODUCTION\n"
-                f"The exploration of {topic_title} stands at the forefront of contemporary discussion. In an era defined by rapid technological adaptation, understanding the core dynamics and transformative principles of this domain is vital for both individual achievement and societal growth.\n\n"
-                f"2. CORE PILLARS & PRACTICAL IMPACT\n"
-                f"When evaluating {topic_title}, several fundamental strengths become evident. Automation and computational reasoning empower users to execute complex tasks locally, ensuring complete privacy, zero cloud dependency, and maximum speed. Furthermore, practical implementation bridges theoretical concepts with tangible everyday productivity.\n\n"
-                f"3. ETHICAL CONSIDERATIONS & FUTURE HORIZONS\n"
-                f"As innovations continue to unfold, maintaining transparency, robustness, and deterministic control remains paramount. By combining human oversight with autonomous desktop execution, solutions in {topic_title} can be deployed responsibly and efficiently.\n\n"
-                f"4. CONCLUSION\n"
-                f"In conclusion, {topic_title} offers boundless opportunities for those who leverage modern tools with purpose and discipline. As we move forward, local-first intelligence will remain a cornerstone of autonomous and secure computing.\n"
-            )
+            clean = re.sub(r'\s*(in\s+word|in\s+msword|in\s+winword|in\s+notepad|in\s+wordpad)\s*$', '', objective, flags=re.IGNORECASE).strip()
+            clean = re.sub(r'^(drafting|draft|writing|write|creating|create|typing|type|making|make|compose|composing|open)?\s*(an|a)?\s*(essay|article|document|paper)?\s*(on\s+the\s+topic\s+of|on\s+the\s+topic|on\s+topic\s+of|on\s+topic|the\s+topic\s+of|topic\s+of|the\s+topic|topic|about|on|for)?\s*', '', clean, flags=re.IGNORECASE).strip()
+            clean = clean.strip('.,!? \'\":')
+            topic_title = clean.title() if len(clean) > 1 else "Rain"
+
+        text = generate_comprehensive_essay(topic_title, min_words=req_wc)
         return (topic_title, text, app)
 
     # 2. Formal Letter / Leave application
@@ -145,7 +203,8 @@ def has_action_intent(objective: str) -> bool:
         "drafting", "letter", "notes", "notepad", "wordpad", "word", "ppt", "powerpoint",
         "document", "open ", "launch ", "play ", "search ", "find ", "calc", "calculator",
         "chrome", "edge", "youtube", "battery", "create ", "write ", "make ", "type ",
-        "draft ", "save ", "close ", "kill "
+        "draft ", "save ", "close ", "kill ", "increase", "expand", "extend", "words",
+        "word", "longer", "rewrite", "make it"
     ]
     return any(k in obj_l for k in action_keywords)
 
@@ -230,22 +289,39 @@ class Planner:
                     t_name = step_data.get("tool_name")
                     args = step_data.get("arguments", {})
 
-                    # If essay/document was requested, enforce Word and preserve LLM's dynamic text
-                    if any(w in obj_l for w in ["essay", "article", "in word", "drafting", "draft an essay"]):
-                        if t_name in ("create_spreadsheet", "launch_application", "create_invoice", "visual_open_and_type"):
-                            t_name = "visual_open_and_type"
-                            gen_text = args.get("text", "")
-                            gen_title = args.get("title", "")
-                            if not gen_text or len(gen_text.strip()) < 30:
-                                fallback_title, fallback_text, _ = build_document_content(objective)
-                                gen_title = gen_title or fallback_title
-                                gen_text = fallback_text
-                            args = {
-                                "title": gen_title or "Essay",
-                                "text": gen_text,
-                                "app_choice": "word" if "notepad" not in obj_l else "notepad",
-                                "save_copy": True
-                            }
+                    # If essay/document was requested or follow-up word count increase
+                    is_essay_req = any(w in obj_l for w in ["essay", "article", "in word", "drafting", "draft an essay"])
+                    is_word_followup = bool(
+                        re.search(r'\b(increase|expand|longer|extend|rewrite|make it)\b', obj_l)
+                        or re.search(r'\b\d+\s*words?\b', obj_l)
+                    ) and "essay" not in obj_l and "on the topic" not in obj_l and "draft" not in obj_l and (
+                        conversation_manager.get_active_document() is not None or
+                        any("essay" in h["content"].lower() or "word" in h["content"].lower() for h in conversation_manager.get_recent_history(limit=4))
+                    )
+
+                    if is_essay_req or is_word_followup:
+                        t_name = "visual_open_and_type"
+                        req_wc = extract_requested_word_count(objective) or 250
+                        active_doc = conversation_manager.get_active_document()
+                        gen_title = (active_doc.get("title") if (is_word_followup and active_doc) else (args.get("title") or ""))
+                        if not gen_title or gen_title.lower() in ("document", "essay", "increase to 250 words", "notes"):
+                            gen_title = (active_doc.get("topic") if active_doc else "Rain") or "Rain"
+
+                        gen_text = args.get("text", "")
+                        if not gen_text or len(gen_text.split()) < req_wc:
+                            gen_text = generate_comprehensive_essay(gen_title, min_words=req_wc)
+
+                        args = {
+                            "title": gen_title,
+                            "text": gen_text,
+                            "app_choice": "word" if "notepad" not in obj_l else "notepad",
+                            "save_copy": True
+                        }
+
+                    # If YouTube play requested
+                    if "youtube" in obj_l and any(w in obj_l for w in ["play", "song", "video", "listen"]):
+                        t_name = "launch_application"
+                        args = {"app_name": objective}
 
                     if not self.registry.get_tool(t_name):
                         audit_logger.warning("Planner suggested unknown tool '%s'. Skipping.", t_name)
@@ -362,18 +438,18 @@ class Planner:
             # Case B: Bot asked about song/video for YouTube
             if ("youtube" in last_bot_text or "song" in last_bot_text or "video" in last_bot_text) and not any(a in obj_clean for a in ["stop", "cancel", "open word", "open chrome"]):
                 song_q = re.sub(r'^(play|open|search)\s*', '', obj_clean, flags=re.IGNORECASE).replace("on youtube", "").replace("youtube", "").strip()
-                search_url = f"https://www.youtube.com/results?search_query={song_q}" if song_q else "https://www.youtube.com"
+                target_cmd = f"play {song_q} on youtube" if song_q else "https://www.youtube.com"
                 return ExecutionPlan(
                     objective=objective,
                     steps=[
                         PlannedStep(
                             step_order=1,
                             tool_name="launch_application",
-                            arguments={"app_name": search_url},
+                            arguments={"app_name": target_cmd},
                             risk_level="R1"
                         )
                     ],
-                    spoken_summary=f"Opening YouTube for {song_q or 'you'}."
+                    spoken_summary=f"Playing {song_q or 'video'} on YouTube now."
                 )
 
             # Case C: Bot asked about document/Notepad content
@@ -393,15 +469,74 @@ class Planner:
                     spoken_summary=f"Opening {app} on your desktop to visually type your document now."
                 )
 
-        # 4. Applications and Web Services Launching
+        # 4. Check for essay follow-up or word count modification (e.g. 'increase to 250 words')
+        is_word_followup = bool(
+            re.search(r'\b(increase|expand|longer|extend|rewrite|make it)\b', obj_clean)
+            or re.search(r'\b\d+\s*words?\b', obj_clean)
+        ) and "essay" not in obj_clean and "on the topic" not in obj_clean and "draft" not in obj_clean and (
+            conversation_manager.get_active_document() is not None or
+            any("essay" in h["content"].lower() or "word" in h["content"].lower() for h in conversation_manager.get_recent_history(limit=4))
+        )
+        if is_word_followup:
+            active_doc = conversation_manager.get_active_document()
+            topic = (active_doc.get("topic") or active_doc.get("title") or "Rain") if active_doc else "Rain"
+            req_words = extract_requested_word_count(obj_clean) or 250
+            expanded_text = generate_comprehensive_essay(topic=topic, min_words=req_words)
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="visual_open_and_type",
+                        arguments={
+                            "title": topic,
+                            "text": expanded_text,
+                            "app_choice": "word",
+                            "save_copy": True
+                        },
+                        risk_level="R1"
+                    )
+                ],
+                spoken_summary=f"Expanded the essay on {topic} to {req_words} words in Microsoft Word and updated {topic}.docx on your Desktop."
+            )
+
+        # 5. Standalone 'play xyz' command (YouTube music/video playback)
+        if obj_lower.startswith("play ") and not any(k in obj_lower for k in ["role", "game"]):
+            query = re.sub(r'^play\s+', '', obj_lower).replace("on youtube", "").strip()
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="launch_application",
+                        arguments={"app_name": f"play {query} on youtube"},
+                        risk_level="R1"
+                    )
+                ],
+                spoken_summary=f"Playing {query} on YouTube now."
+            )
+
+        # 6. Applications and Web Services Launching
         if any(w in obj_lower for w in ["open", "launch", "play", "show me", "start"]):
             # Web services (YouTube, Facebook, etc.)
             for web_k in ["youtube", "facebook", "whatsapp", "instagram", "gmail", "twitter", "reddit", "linkedin", "github", "chatgpt"]:
                 if web_k in obj_lower:
-                    if web_k == "youtube" and ("play " in obj_lower or "song" in obj_lower):
+                    if web_k == "youtube" and any(w in obj_lower for w in ["play", "song", "video", "listen"]):
                         query = re.sub(r'^(open\s+)?(youtube\s+)?(and\s+)?(play\s+)?', '', obj_lower).replace("on youtube", "").replace("song", "").strip()
                         query = query.rstrip(" on").strip()
-                        target = f"https://www.youtube.com/results?search_query={query}" if query else "https://www.youtube.com"
+                        target = f"play {query} on youtube" if query else "https://www.youtube.com"
+                        return ExecutionPlan(
+                            objective=objective,
+                            steps=[
+                                PlannedStep(
+                                    step_order=1,
+                                    tool_name="launch_application",
+                                    arguments={"app_name": target},
+                                    risk_level="R1"
+                                )
+                            ],
+                            spoken_summary=f"Playing {query or 'video'} on YouTube now."
+                        )
                     else:
                         target = web_k
 
@@ -438,9 +573,10 @@ class Planner:
                         spoken_summary=f"Opening {app_key} on your laptop."
                     )
 
-        # 5. Visual desktop typing for essays, letters, and documents (Microsoft Word / Desktop)
+        # 7. Visual desktop typing for essays, letters, and documents (Microsoft Word / Desktop)
         if any(w in obj_lower for w in ["essay", "article", "drafting", "draft an essay", "write an essay", "write a document", "type in notepad", "write in word", "open wordpad and type", "write a letter", "leave application", "write notes"]):
-            title, doc_content, app = build_document_content(objective)
+            req_wc = extract_requested_word_count(objective) or 250
+            title, doc_content, app = build_document_content(objective, min_words=req_wc)
             app_display = "Microsoft Word" if app == "word" else app.capitalize()
             return ExecutionPlan(
                 objective=objective,

@@ -5,7 +5,7 @@ clarifications, follow-ups, and natural human dialogue.
 """
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import sqlite3
 from app.memory.db import db_manager, DatabaseManager
 from app.audit.logger import audit_logger
@@ -33,9 +33,35 @@ class ConversationManager:
     def __init__(self, db: DatabaseManager = db_manager, memory_limit: int = 12):
         self.db = db
         self.memory_limit = memory_limit
+        self._active_document: Optional[Dict[str, Any]] = None
         self._init_table()
         self._cache: List[Dict[str, str]] = []
         self._load_cache()
+
+    def set_active_document(
+        self,
+        title: str,
+        text: str,
+        app_choice: str = "word",
+        path: Optional[str] = None,
+        topic: Optional[str] = None
+    ) -> None:
+        """Stores context of the most recently created or edited document/essay."""
+        self._active_document = {
+            "title": title,
+            "text": text,
+            "app_choice": app_choice,
+            "path": path,
+            "topic": topic or title
+        }
+        audit_logger.info("Updated active document context: '%s' (%s)", title, app_choice)
+
+    def get_active_document(self) -> Optional[Dict[str, Any]]:
+        """Returns the active document context dictionary, if any."""
+        return self._active_document
+
+    def clear_active_document(self) -> None:
+        self._active_document = None
 
     def _init_table(self):
         with self.db.transaction() as conn:
@@ -100,6 +126,7 @@ class ConversationManager:
 
     def clear(self):
         self._cache.clear()
+        self._active_document = None
         with self.db.transaction() as conn:
             conn.execute("DELETE FROM conversation_turns")
         audit_logger.info("Conversation memory cleared.")

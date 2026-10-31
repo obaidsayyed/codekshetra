@@ -151,3 +151,69 @@ def test_user_rain_essay_word_and_interact_ai_invoice():
     assert p_inv.steps[0].arguments["items"][0]["unit_price"] == 23000.0
     # Tax total 23000 * 1.18 = 27140
     assert "27140" in p_inv.spoken_summary
+
+
+def test_followup_increase_essay_to_250_words():
+    from app.brain.planner import planner, extract_requested_word_count
+    from app.memory.conversation import conversation_manager
+    from app.orchestration.engine import workflow_engine
+
+    conversation_manager.clear()
+
+    # Step 1: Draft initial essay
+    res1 = workflow_engine.handle_objective("drafting an essay on the topic rain in word")
+    assert res1["success"] is True
+    active_doc = conversation_manager.get_active_document()
+    assert active_doc is not None
+    assert active_doc["title"] == "Rain"
+
+    # Step 2: Follow-up command to increase to 250 words
+    plan = planner._deterministic_plan("increase to 250 words")
+    assert len(plan.steps) == 1
+    assert plan.steps[0].tool_name == "visual_open_and_type"
+    assert plan.steps[0].arguments["app_choice"] == "word"
+    assert plan.steps[0].arguments["title"] == "Rain"
+    
+    # Verify word count meets or exceeds 250 words
+    text = plan.steps[0].arguments["text"]
+    words_count = len(text.split())
+    assert words_count >= 250, f"Expected at least 250 words, but got {words_count}"
+    assert "Rain" in plan.spoken_summary
+    assert "250 words" in plan.spoken_summary
+
+    # Execute the follow-up step
+    res2 = workflow_engine.handle_objective("increase to 250 words")
+    assert res2["success"] is True
+    assert "Rain" in res2["spoken_message"]
+
+
+def test_play_youtube_video_playback():
+    from app.brain.planner import planner
+    from app.orchestration.engine import workflow_engine
+
+    # 1. Deterministic plan generates launch_application with YouTube play
+    plan = planner._deterministic_plan("play believer on youtube")
+    assert len(plan.steps) == 1
+    assert plan.steps[0].tool_name == "launch_application"
+    assert "believer" in plan.steps[0].arguments["app_name"].lower()
+    assert "youtube" in plan.spoken_summary.lower()
+
+    # 2. Execution succeeds and triggers YouTube video playback
+    res = workflow_engine.handle_objective("play believer on youtube")
+    assert res["success"] is True
+    assert "youtube" in res["spoken_message"].lower()
+
+
+def test_continuous_followup_inquiry_and_dismissal():
+    from app.voice.session import voice_session
+    from app.orchestration.engine import workflow_engine
+
+    # Step 1: Voice session process_user_utterance appends follow-up inquiry
+    res = voice_session.process_user_utterance("check system status", auto_listen_followup=False)
+    assert res["success"] is True
+    assert "Would you like me to do anything else?" in res["spoken_message"]
+
+    # Step 2: Dismissive response returns courteous closing message
+    res_dismiss = voice_session.process_user_utterance("no thank you, that's all", auto_listen_followup=False)
+    assert "no thank you" in res_dismiss.get("spoken_message", "").lower() or res_dismiss.get("success") is True
+

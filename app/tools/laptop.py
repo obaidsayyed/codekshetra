@@ -6,6 +6,9 @@ opening folders in Windows Explorer, reading battery and hardware health, and se
 import subprocess
 import shutil
 import os
+import re
+import urllib.parse
+import urllib.request
 import winreg
 import webbrowser
 from pathlib import Path
@@ -18,6 +21,44 @@ from app.permissions.policy import RiskLevel
 from app.tools.base import BaseTool, ToolResult, EmptyInput
 from app.tools.files import is_path_allowed
 from app.audit.logger import audit_logger
+
+
+def resolve_youtube_play_url(query: str) -> tuple[str, str]:
+    """
+    Given a song or video title, queries YouTube to resolve the top video watch URL
+    (https://www.youtube.com/watch?v=...) so it immediately autoplays in the user's browser.
+    Falls back cleanly to the search results URL if offline or network unavailable.
+    Returns (url_to_open, clean_title).
+    """
+    clean_q = re.sub(r'^(play|open|search)\s*', '', query, flags=re.IGNORECASE).strip()
+    clean_q = re.sub(r'\s*(on\s+youtube|in\s+youtube|on\s+yt)\s*$', '', clean_q, flags=re.IGNORECASE).strip()
+    clean_q = clean_q.rstrip(" on").strip()
+    if not clean_q:
+        return "https://www.youtube.com", "YouTube"
+
+    encoded = urllib.parse.quote_plus(clean_q)
+    search_url = f"https://www.youtube.com/results?search_query={encoded}"
+
+    try:
+        req = urllib.request.Request(
+            search_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+            video_ids = re.findall(r'/watch\?v=([a-zA-Z0-9_-]{11})', html)
+            if video_ids:
+                first_vid = video_ids[0]
+                watch_url = f"https://www.youtube.com/watch?v={first_vid}"
+                audit_logger.info("Resolved top YouTube video for '%s' -> %s", clean_q, watch_url)
+                return watch_url, clean_q
+    except Exception as e:
+        audit_logger.warning("Could not resolve direct YouTube video ID (%s). Using search URL.", e)
+
+    return search_url, clean_q
 
 
 WEB_TARGETS = {
@@ -102,7 +143,37 @@ class LaunchAppTool(BaseTool):
 
         audit_logger.info("Resolving launch request for: '%s' (cleaned: '%s')", app_name, raw_name)
 
-        # 1. Check if it's a web service / URL
+        # 1. Check if it's a YouTube play request (e.g. 'play believer on youtube' or 'play xyz')
+        raw_l = app_name.lower().strip()
+        if ("youtube" in raw_l and any(w in raw_l for w in ["play", "song", "video", "listen"])) or raw_l.startswith("play "):
+            play_url, song_title = resolve_youtube_play_url(app_name)
+            try:
+                audit_logger.info("Playing YouTube video in browser: %s", play_url)
+                webbrowser.open(play_url)
+                return ToolResult(
+                    success=True,
+                    data={"target": play_url, "type": "youtube_play", "query": song_title},
+                    evidence=f"Playing '{song_title}' on YouTube in your browser."
+                )
+            except Exception as e:
+                return ToolResult(success=False, error=f"Could not play YouTube for '{song_title}': {str(e)}")
+
+        # 2. Check if it's a search results URL for YouTube
+        if "youtube.com/results?search_query=" in raw_name:
+            m = re.search(r'search_query=([^&]+)', raw_name)
+            q_extracted = urllib.parse.unquote_plus(m.group(1)) if m else ""
+            play_url, song_title = resolve_youtube_play_url(q_extracted or "video")
+            try:
+                webbrowser.open(play_url)
+                return ToolResult(
+                    success=True,
+                    data={"target": play_url, "type": "youtube_play", "query": song_title},
+                    evidence=f"Playing '{song_title}' on YouTube in your browser."
+                )
+            except Exception as e:
+                return ToolResult(success=False, error=f"Could not open YouTube: {str(e)}")
+
+        # 3. Check if it's a web service / URL
         if raw_name in WEB_TARGETS or raw_name.startswith(("http://", "https://", "www.")) or raw_name.endswith((".com", ".org", ".in")):
             target_url = WEB_TARGETS.get(raw_name, raw_name)
             if not target_url.startswith(("http://", "https://")):
@@ -118,7 +189,7 @@ class LaunchAppTool(BaseTool):
             except Exception as e:
                 return ToolResult(success=False, error=f"Could not open {target_url}: {str(e)}")
 
-        # 2. Check alias for desktop applications
+        # 4. Check alias for desktop applications
         target_name = APP_ALIASES.get(raw_name, raw_name)
 
         # 3. Look up registered application path in Windows Registry

@@ -301,6 +301,7 @@ class SundayGUI:
         background_listener.on_wake_detected = self._on_wake_detected
         background_listener.on_status_change = self._on_wake_status_change
         background_listener.on_audio_level = self._update_vu_level
+        voice_session.on_status_change = self._on_wake_status_change
         threading.Thread(target=self._init_thread, daemon=True).start()
 
     def _on_wake_detected(self, text: str):
@@ -311,6 +312,9 @@ class SundayGUI:
         if status == "recording":
             self.root.after(0, lambda: self.status_badge.configure(text="🔴 RECORDING SPEECH...", fg="#f38ba8"))
             self.root.after(0, lambda: self.voice_feedback_lbl.configure(text="Recording speech dynamically... speak clearly."))
+        elif status == "followup":
+            self.root.after(0, lambda: self.status_badge.configure(text="● LISTENING FOR FOLLOW-UP...", fg="#89b4fa"))
+            self.root.after(0, lambda: self.voice_feedback_lbl.configure(text="Say your follow-up command or 'No thanks' (microphone active)..."))
         elif status == "idle":
             self.root.after(0, lambda: self.status_badge.configure(text="● LISTENING FOR 'HEY SUNDAY'", fg="#a6e3a1"))
             self.root.after(0, lambda: self.voice_feedback_lbl.configure(text="Say 'Hey SUNDAY' or click above to speak"))

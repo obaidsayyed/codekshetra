@@ -212,7 +212,7 @@ class BackgroundVoiceListener:
             audit_logger.info("Executing inline command following wake word: '%s'", cmd)
             def run_inline():
                 try:
-                    voice_session.process_user_utterance(cmd)
+                    voice_session.process_user_utterance(cmd, auto_listen_followup=True)
                 finally:
                     self.resume()
             threading.Thread(target=run_inline, daemon=True).start()

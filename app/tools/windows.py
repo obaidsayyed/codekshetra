@@ -116,6 +116,19 @@ class VisualOpenAndTypeTool(BaseTool):
             except Exception as e:
                 audit_logger.warning("Could not launch Word executable: %s", e)
 
+            # Record active document in conversation memory for follow-ups
+            try:
+                from app.memory.conversation import conversation_manager
+                conversation_manager.set_active_document(
+                    title=clean_title,
+                    text=text,
+                    app_choice="word",
+                    path=str(target_to_open),
+                    topic=title
+                )
+            except Exception:
+                pass
+
             return ToolResult(
                 success=True,
                 output_path=str(output_file_path) if output_file_path else None,

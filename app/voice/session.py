@@ -3,7 +3,8 @@ Voice session manager and conversation loop for SUNDAY.
 State machine, half-duplex turn taking, voice-based approval prompts and confirmations.
 """
 from enum import Enum
-from typing import Optional, Dict, Any
+import re
+from typing import Optional, Dict, Any, Callable
 from app.voice.audio_io import audio_io, AudioIO
 from app.voice.stt import stt, SpeechToText
 from app.voice.tts import tts, TextToSpeech
@@ -28,12 +29,14 @@ class VoiceSession:
         audio: AudioIO = audio_io,
         speech_stt: SpeechToText = stt,
         speech_tts: TextToSpeech = tts,
-        engine: WorkflowEngine = workflow_engine
+        engine: WorkflowEngine = workflow_engine,
+        on_status_change: Optional[Callable[[str], None]] = None
     ):
         self.audio = audio
         self.stt = speech_stt
         self.tts = speech_tts
         self.engine = engine
+        self.on_status_change = on_status_change
         self.state = SessionState.IDLE
         self.active_approval_id: Optional[str] = None
         self.is_task_executing: bool = False
@@ -104,13 +107,18 @@ class VoiceSession:
             }
 
         audit_logger.info("User spoken utterance: '%s'", text)
-        return self.process_user_utterance(text)
+        return self.process_user_utterance(text, auto_listen_followup=True, on_chunk=on_chunk)
 
-    def process_user_utterance(self, text: str) -> Dict[str, Any]:
+    def process_user_utterance(
+        self,
+        text: str,
+        auto_listen_followup: bool = False,
+        on_chunk: Optional[callable] = None
+    ) -> Dict[str, Any]:
         """
         Processes a recognized user command or conversational message.
         Locks execution so no further voice inputs can interrupt, speaks out thinking feedback,
-        executes the task, speaks the result, and unlocks only upon completion.
+        executes the task, speaks the result, and optionally listens for follow-up continuation.
         """
         text = text.strip()
         if not text:
@@ -176,7 +184,64 @@ class VoiceSession:
             elif status == "completed":
                 self.state = SessionState.SPEAKING
                 spoken = result.get("spoken_message", "Task completed.")
+
+                # Append follow-up prompt so conversation continues naturally
+                if not any(f in spoken.lower() for f in ["anything else", "what else", "need anything"]):
+                    spoken = f"{spoken} Would you like me to do anything else?"
+                result["spoken_message"] = spoken
                 self.tts.speak(spoken)
+
+                # Continuous Voice Follow-up Turn: Keep microphone open for user's reply
+                if auto_listen_followup:
+                    audit_logger.info("Task completed. Listening for follow-up response from user...")
+                    self.state = SessionState.LISTENING
+                    self.is_task_executing = False
+                    if self.on_status_change:
+                        self.on_status_change("followup")
+
+                    followup_audio = self.audio.record_speech_dynamic(
+                        max_duration_sec=30.0,
+                        silence_timeout_sec=1.2,
+                        initial_silence_timeout_sec=4.5,
+                        min_duration_sec=0.5,
+                        energy_threshold=0.008,
+                        on_chunk=on_chunk
+                    )
+
+                    if followup_audio is not None and len(followup_audio) > 0:
+                        self.state = SessionState.TRANSCRIBING
+                        transcription = self.stt.transcribe_audio(followup_audio)
+                        followup_text = transcription.get("text", "").strip()
+
+                        if followup_text:
+                            audit_logger.info("Follow-up user utterance: '%s'", followup_text)
+                            dismissive = [
+                                "no", "nothing", "that's all", "thats all", "no thank you", "no thanks",
+                                "nope", "i am good", "im good", "all good", "stop", "cancel", "done", "bye", "goodbye"
+                            ]
+                            clean_ans = re.sub(r'[^\w\s]', '', followup_text.lower()).strip()
+                            if clean_ans in dismissive or any(clean_ans == d for d in dismissive):
+                                self.state = SessionState.SPEAKING
+                                closing = "Alright, let me know if you need anything else."
+                                self.tts.speak(closing)
+                                self.state = SessionState.IDLE
+                                if self.on_status_change:
+                                    self.on_status_change("idle")
+                                return {**result, "closing_message": closing}
+                            else:
+                                if self.on_status_change:
+                                    self.on_status_change("processing")
+                                return self.process_user_utterance(
+                                    followup_text,
+                                    auto_listen_followup=True,
+                                    on_chunk=on_chunk
+                                )
+
+                    audit_logger.info("No follow-up speech detected within timeout. Returning to standby.")
+                    self.state = SessionState.IDLE
+                    if self.on_status_change:
+                        self.on_status_change("idle")
+
                 return result
 
             elif status in ("busy", "duplicate"):
