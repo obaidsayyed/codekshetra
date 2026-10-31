@@ -107,18 +107,36 @@ All 22 automated tests passed across the SUNDAY test suite:
 | **MEM-01**| Multi-Turn | Preserves conversational context across turns for follow-ups | **PASSED** |
 | **VAD-01**| Dynamic Speech | Accepts long sentences up to 45s with VAD silence endpointing | **PASSED** |
 | **COWORK-01**| Visual Cowork | Visible line-by-line essay typing & Excel opening on Desktop | **PASSED** |
-| **THINK-01** | Spoken Thinking| Spoken thinking acknowledgment before executing tasks | **PASSED** |
+| **THINK-01** | Spoken Thinking| Direct Ollama spoken summary read aloud before and during task | **PASSED** |
 | **LOCK-01**  | Busy Lockout   | Strict execution lockout rejects voice interrupts while busy | **PASSED** |
-| **LLM-9B**   | 9B Local Model | Ollama gemma2:9b integrated with 4K context and JSON output | **PASSED** |
+| **LLM-QWEN** | Qwen3 8B Brain | Ollama qwen3:8b integrated with 4K context and JSON output | **PASSED** |
+| **TEMP-0**   | Zero STT Temp  | Faster-Whisper temperature set to strictly 0 for deterministic capture | **PASSED** |
 
 ---
 
 ## 4. Recent Enhancements & Resolved Issues
 
-1. **Shift to Ollama 9B Model (`gemma2:9b`)**:
-   - Upgraded local Ollama brain from 3B to **`gemma2:9b`** (5.4 GB 9-billion parameter model).
-   - Configured with automatic resilience fallback to `qwen3:8b` and `qwen2.5:3b`.
-   - Delivers significantly stronger reasoning, deep instruction following, and rich multi-turn conversational responses.
+1. **Integrated Ollama `qwen3:8b` as Primary Local Brain**:
+   - Switched default Ollama reasoning engine to **`qwen3:8b`** (5.2 GB 8-billion parameter model).
+   - Configured with automatic resilience fallback to `gemma2:9b` and `qwen2.5:3b`.
+   - Delivers significantly stronger reasoning and instruction following while preserving offline execution.
+
+2. **Whisper Voice Model Temperature Strictly Set to 0**:
+   - In `app/voice/stt.py`, configured `temperature=0` (deterministic decoding).
+   - Completely removes probabilistic hallucinations and variance from transcribed speech.
+
+3. **Guaranteed Task Execution (Bias-to-Action)**:
+   - When a computer action is requested (create invoice, spreadsheet, write essay, launch app, search files), SUNDAY prioritizes tool execution rather than endless conversational clarification.
+   - For requests like *"create an invoice for ABC Corp 50000 rupees"*, SUNDAY generates sensible default items, creates the styled Excel workbook directly on the **Desktop**, and opens **Microsoft Excel** live on screen.
+
+4. **Dynamic Speech from Ollama (No Hardcoded Phrases)**:
+   - Replaced static phrases like *"I am thinking about your request"* with the real reasoning text and spoken summary generated directly by Ollama.
+   - Ollama's planned action summary is read aloud via Piper neural TTS right as the tool execution starts.
+   - Upon completion, SUNDAY speaks the final outcome and opens up for the next instruction.
+
+5. **Strict Half-Duplex Lockout**:
+   - While a task is executing, incoming microphone audio is strictly locked out.
+   - Only after the task finishes and the speech is completely read aloud does SUNDAY unlock the microphone to take inputs for the next task.
 
 2. **Highest Quality Offline STT (`medium.en` with Beam Search & Noise Filtering)**:
    - Upgraded speech recognition to **`medium.en`** (1.5 GB high-accuracy English model pre-staged locally).
