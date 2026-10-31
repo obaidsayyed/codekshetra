@@ -34,50 +34,73 @@ class SpeechToText:
 
     def _get_model(self) -> WhisperModel:
         if self._model is None:
-            # Try preferred model (base.en for high English accuracy)
-            try:
-                audit_logger.info("Loading offline Whisper model '%s' from %s...", self.model_name, self.model_dir)
-                self._model = WhisperModel(
-                    self.model_name,
-                    device="cpu",
-                    compute_type="int8",
-                    download_root=str(self.model_dir),
-                    local_files_only=True
-                )
-                audit_logger.info("Whisper model '%s' loaded successfully.", self.model_name)
-            except Exception as e:
-                audit_logger.warning("Could not load '%s' (%s). Falling back to 'tiny'.", self.model_name, e)
+            # Fallback cascade: medium.en -> small.en -> base.en -> tiny
+            candidates = [self.model_name, "medium.en", "small.en", "base.en", "tiny"]
+            # Deduplicate while preserving order
+            seen = set()
+            ordered_candidates = [c for c in candidates if not (c in seen or seen.add(c))]
+
+            for candidate in ordered_candidates:
+                try:
+                    audit_logger.info("Loading offline Whisper model '%s' from %s...", candidate, self.model_dir)
+                    self._model = WhisperModel(
+                        candidate,
+                        device="cpu",
+                        compute_type="int8",
+                        download_root=str(self.model_dir),
+                        local_files_only=True
+                    )
+                    self.model_name = candidate
+                    audit_logger.info("Whisper model '%s' loaded successfully.", candidate)
+                    break
+                except Exception as e:
+                    audit_logger.warning("Could not load '%s' (%s). Trying next candidate.", candidate, e)
+
+            if self._model is None:
+                # Final fallback to tiny
                 self._model = WhisperModel(
                     "tiny",
                     device="cpu",
                     compute_type="int8",
                     download_root=str(self.model_dir),
-                    local_files_only=True
+                    local_files_only=False
                 )
-                audit_logger.info("Whisper tiny fallback loaded successfully.")
         return self._model
 
     def transcribe_file(self, wav_path: str, language: Optional[str] = "en") -> Dict[str, Any]:
-        """Transcribes a WAV file locally. Defaults to English ('en') to prevent foreign script hallucinations."""
+        """Transcribes a WAV file locally. Uses beam search and VAD to eliminate background noise."""
         target = Path(wav_path)
         if not target.exists():
             return {"text": "", "language": "en", "confidence": 0.0, "error": "Audio file not found"}
 
         model = self._get_model()
-        # Default to English ('en') unless specified, preventing cross-language hallucination
         lang = language if language else "en"
+        prompt = (
+            "SUNDAY is an offline AI employee on Windows 11. Clear English speech. "
+            "Commands: create invoice in Excel, write essay in Word, Notepad, spreadsheet, "
+            "open YouTube, Chrome, calculator, check battery, files, search, draft message, clear history."
+        )
+
         segments, info = model.transcribe(
             str(target),
             language=lang,
-            beam_size=1,
-            initial_prompt="SUNDAY, offline AI employee for Windows 11. Create invoice in Excel, write essay in Word, Notepad, spreadsheet, open YouTube, Chrome, calculator, files, letter.",
+            beam_size=5,
+            best_of=5,
+            temperature=[0.0, 0.2],
+            initial_prompt=prompt,
             vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=400)
+            vad_parameters=dict(min_silence_duration_ms=500, threshold=0.5, speech_pad_ms=250)
         )
 
         text_pieces = []
         confidences = []
         for segment in segments:
+            # Filter out segments identified as non-speech noise or very low logprob
+            if getattr(segment, "no_speech_prob", 0.0) > 0.45:
+                continue
+            if getattr(segment, "avg_logprob", 0.0) < -1.1:
+                continue
+
             text_pieces.append(segment.text)
             if hasattr(segment, 'avg_logprob'):
                 confidences.append(float(np.exp(segment.avg_logprob)))

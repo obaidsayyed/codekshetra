@@ -4,6 +4,8 @@ State machine enforcement, dependency execution, SQLite checkpoints, and emergen
 """
 import uuid
 import json
+import time
+import threading
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from app.memory.models import TaskRecord, TaskStepRecord, ApprovalRecord
@@ -29,19 +31,26 @@ class WorkflowEngine:
         self.registry = registry or tool_registry
         self.planner = plan_module or planner
         self.is_stopped: bool = False
+        self.is_busy: bool = False
+        self._busy_lock = threading.Lock()
+        self._last_objective: str = ""
+        self._last_objective_ts: float = 0.0
 
     def emergency_stop(self) -> str:
         """Immediately halts future tool calls and marks running tasks."""
         self.is_stopped = True
+        self.is_busy = False
         audit_logger.warning("Emergency stop triggered. Halting all workflow execution.")
         return "SUNDAY execution stopped immediately by owner."
 
     def reset_stop(self) -> None:
         self.is_stopped = False
+        self.is_busy = False
 
     def handle_objective(self, objective: str) -> Dict[str, Any]:
         """
         Receives an objective, generates plan, commits to SQLite, and begins execution.
+        Locks execution to prevent duplicate tasks or audio inputs while processing.
         """
         if self.is_stopped:
             return {
@@ -50,64 +59,90 @@ class WorkflowEngine:
                 "message": "SUNDAY is currently stopped. Please issue a reset or new request."
             }
 
-        # 1. Plan objective with conversation context from previous turns
-        plan: ExecutionPlan = self.planner.plan(objective)
+        # Concurrency & Deduplication Guard
+        with self._busy_lock:
+            if self.is_busy:
+                audit_logger.warning("Rejecting command '%s': SUNDAY is currently executing a task.", objective)
+                return {
+                    "success": False,
+                    "status": "busy",
+                    "spoken_message": "I am currently executing a task. Please wait until it completes."
+                }
+            now_ts = time.time()
+            clean_obj = objective.strip().lower()
+            if clean_obj and clean_obj == self._last_objective and (now_ts - self._last_objective_ts) < 3.0:
+                audit_logger.info("Ignoring duplicate command received within 3.0s: '%s'", clean_obj)
+                return {
+                    "success": False,
+                    "status": "duplicate",
+                    "spoken_message": ""
+                }
+            self._last_objective = clean_obj
+            self._last_objective_ts = now_ts
+            self.is_busy = True
 
-        # Record user message in conversation memory
-        from app.memory.conversation import conversation_manager
-        conversation_manager.add_turn("user", objective)
+        try:
+            # 1. Plan objective with conversation context from previous turns
+            plan: ExecutionPlan = self.planner.plan(objective)
 
-        # Check conversational response
-        if plan.is_conversational:
-            conversation_manager.add_turn("assistant", plan.spoken_summary)
-            return {
-                "success": True,
-                "status": "conversational",
-                "spoken_message": plan.spoken_summary
-            }
+            # Record user message in conversation memory
+            from app.memory.conversation import conversation_manager
+            conversation_manager.add_turn("user", objective)
 
-        if plan.is_ambiguous:
-            msg = plan.clarifying_question or plan.spoken_summary
-            conversation_manager.add_turn("assistant", msg)
-            return {
-                "success": False,
-                "status": "clarification_needed",
-                "spoken_message": msg,
-                "question": plan.clarifying_question
-            }
+            # Check conversational response
+            if plan.is_conversational:
+                conversation_manager.add_turn("assistant", plan.spoken_summary)
+                return {
+                    "success": True,
+                    "status": "conversational",
+                    "spoken_message": plan.spoken_summary
+                }
 
-        # 2. Persist parent task to SQLite before ANY side effects
-        task_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).isoformat()
-        task = TaskRecord(
-            id=task_id,
-            title=objective,
-            state=TaskState.READY.value,
-            risk=plan.steps[0].risk_level if plan.steps else "R0",
-            created_at=now,
-            updated_at=now
-        )
-        self.task_repo.save_task(task)
+            if plan.is_ambiguous:
+                msg = plan.clarifying_question or plan.spoken_summary
+                conversation_manager.add_turn("assistant", msg)
+                return {
+                    "success": False,
+                    "status": "clarification_needed",
+                    "spoken_message": msg,
+                    "question": plan.clarifying_question
+                }
 
-        # 3. Persist steps
-        steps: List[TaskStepRecord] = []
-        for p_step in plan.steps:
-            step_record = TaskStepRecord(
-                id=str(uuid.uuid4()),
-                task_id=task_id,
-                step_order=p_step.step_order,
-                tool_name=p_step.tool_name,
-                arguments_json=json.dumps(p_step.arguments),
+            # 2. Persist parent task to SQLite before ANY side effects
+            task_id = str(uuid.uuid4())
+            now = datetime.now(timezone.utc).isoformat()
+            task = TaskRecord(
+                id=task_id,
+                title=objective,
                 state=TaskState.READY.value,
-                risk_level=p_step.risk_level
+                risk=plan.steps[0].risk_level if plan.steps else "R0",
+                created_at=now,
+                updated_at=now
             )
-            self.task_repo.save_step(step_record)
-            steps.append(step_record)
+            self.task_repo.save_task(task)
 
-        audit_logger.info("Persisted task %s with %d steps to SQLite.", task_id, len(steps))
+            # 3. Persist steps
+            steps: List[TaskStepRecord] = []
+            for p_step in plan.steps:
+                step_record = TaskStepRecord(
+                    id=str(uuid.uuid4()),
+                    task_id=task_id,
+                    step_order=p_step.step_order,
+                    tool_name=p_step.tool_name,
+                    arguments_json=json.dumps(p_step.arguments),
+                    state=TaskState.READY.value,
+                    risk_level=p_step.risk_level
+                )
+                self.task_repo.save_step(step_record)
+                steps.append(step_record)
 
-        # 4. Execute steps sequentially
-        return self.execute_task(task_id)
+            audit_logger.info("Persisted task %s with %d steps to SQLite.", task_id, len(steps))
+
+            # 4. Execute steps sequentially
+            return self.execute_task(task_id)
+        finally:
+            with self._busy_lock:
+                self.is_busy = False
 
     def execute_task(self, task_id: str) -> Dict[str, Any]:
         task = self.task_repo.get_task(task_id)

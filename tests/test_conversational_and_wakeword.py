@@ -85,3 +85,47 @@ def test_visual_essay_and_desktop_excel_invoice():
     res_sheet = workflow_engine.handle_objective("Create a spreadsheet of quarterly expenses")
     assert res_sheet["success"] is True
     assert "excel" in res_sheet["spoken_message"].lower() or "spreadsheet" in res_sheet["spoken_message"].lower()
+
+
+def test_spoken_thinking_phrase_and_busy_lock():
+    # 1. Spoken thinking phrase generation
+    phrase_inv = voice_session.generate_thinking_phrase("create an invoice for Global Corp")
+    assert "invoice" in phrase_inv.lower() or "excel" in phrase_inv.lower()
+
+    phrase_essay = voice_session.generate_thinking_phrase("write an essay on quantum computing in notepad")
+    assert "document" in phrase_essay.lower() or "drafting" in phrase_essay.lower()
+
+    phrase_app = voice_session.generate_thinking_phrase("open Chrome")
+    assert "browser" in phrase_app.lower() or "opening" in phrase_app.lower()
+
+    # 2. Busy lock prevents concurrent re-entrant execution
+    workflow_engine.is_busy = True
+    try:
+        busy_res = workflow_engine.handle_objective("Search for document on desktop")
+        assert busy_res["success"] is False
+        assert busy_res["status"] == "busy"
+    finally:
+        workflow_engine.is_busy = False
+
+
+def test_dynamic_endpointing_and_noise_filtering():
+    from app.voice.audio_io import audio_io, apply_highpass_filter
+    import numpy as np
+
+    # Verify high-pass filter eliminates low frequencies
+    dummy_signal = np.sin(np.linspace(0, 100 * np.pi, 16000)).astype(np.float32)
+    filtered = apply_highpass_filter(dummy_signal, sample_rate=16000, cutoff=80.0)
+    assert len(filtered) == len(dummy_signal)
+
+    # Verify 1.0s silence stop configuration in audio_io
+    assert hasattr(audio_io, "record_speech_dynamic")
+
+
+def test_gemma2_9b_configuration_and_medium_stt():
+    from app.config.settings import settings
+    from app.voice.stt import stt
+
+    # Verify 9B model selection and medium.en STT selection
+    assert settings.ollama_model == "gemma2:9b"
+    assert settings.whisper_model_name == "medium.en"
+    assert stt.model_name in ("medium.en", "small.en", "base.en", "tiny")

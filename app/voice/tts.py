@@ -54,13 +54,16 @@ class TextToSpeech:
             voice.synthesize_wav(clean_text, wav_file)
 
         if play_audio:
-            # Turn-taking: pause mic
+            # Turn-taking: pause mic and block incoming voice input while speaking
             self.is_speaking = True
             was_muted = audio_io.is_muted
             audio_io.set_mute(True)
             try:
                 audio_io.play_wav(temp_wav)
             finally:
+                # Cooldown so room acoustic reverberation completely fades before mic reopens
+                import time
+                time.sleep(0.35)
                 audio_io.set_mute(was_muted)
                 self.is_speaking = False
 

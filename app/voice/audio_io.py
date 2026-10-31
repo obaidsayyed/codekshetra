@@ -18,6 +18,22 @@ TARGET_SAMPLE_RATE = 16000  # 16 kHz required by Whisper & wake word
 CHANNELS = 1                # Mono
 
 
+def apply_highpass_filter(data: np.ndarray, sample_rate: int = 16000, cutoff: float = 80.0) -> np.ndarray:
+    """
+    Applies a 4th-order Butterworth high-pass filter at 80 Hz.
+    Eliminates laptop fan hum, table rumble, and low-frequency electrical noise.
+    """
+    try:
+        nyquist = 0.5 * sample_rate
+        norm_cutoff = cutoff / nyquist
+        if norm_cutoff >= 1.0:
+            return data
+        b, a = scipy.signal.butter(4, norm_cutoff, btype='high', analog=False)
+        return scipy.signal.filtfilt(b, a, data)
+    except Exception:
+        return data
+
+
 class AudioIO:
     def __init__(self):
         self.is_muted: bool = False
@@ -45,14 +61,16 @@ class AudioIO:
     def record_speech_dynamic(
         self,
         max_duration_sec: float = 45.0,
-        silence_timeout_sec: float = 1.8,
-        min_duration_sec: float = 1.2,
-        energy_threshold: float = 0.004,
+        silence_timeout_sec: float = 1.0,
+        initial_silence_timeout_sec: float = 1.5,
+        min_duration_sec: float = 0.8,
+        energy_threshold: float = 0.015,
         on_chunk: Optional[callable] = None
     ) -> Optional[np.ndarray]:
         """
         Dynamically records speech until the user finishes talking (VAD endpointing).
-        Allows full natural conversations and long multi-sentence instructions without premature cutoff.
+        If no speech is detected within initial_silence_timeout_sec (1.5s), returns to waiting for new convo.
+        Endpoints speech after 1.0s of silence. Rejects room/fan noise below threshold.
         """
         if self.is_muted:
             audit_logger.warning("Dynamic record requested while muted. Capture aborted.")
@@ -67,15 +85,18 @@ class AudioIO:
         speech_started = False
         silence_elapsed = 0.0
         total_time = 0.0
+        ambient_samples = []
+        effective_threshold = energy_threshold
 
-        audit_logger.info("Dynamic recording started (max %.1fs, silence stop: %.1fs)...", max_duration_sec, silence_timeout_sec)
+        audit_logger.info("Dynamic recording started (max %.1fs, pause endpoint: %.1fs, standby timeout: %.1fs)...",
+                          max_duration_sec, silence_timeout_sec, initial_silence_timeout_sec)
 
         try:
             with sd.InputStream(samplerate=native_rate, channels=self.channels, dtype='float32', blocksize=chunk_samples) as stream:
                 while total_time < max_duration_sec:
                     if self.is_muted:
                         break
-                    data, overflowed = stream.read(chunk_samples)
+                    data, _ = stream.read(chunk_samples)
                     chunk_flat = data.flatten()
                     chunks.append(chunk_flat)
                     total_time += chunk_duration
@@ -83,10 +104,18 @@ class AudioIO:
                     rms = float(np.sqrt(np.mean(chunk_flat ** 2)))
                     self.last_audio_level = float(np.max(np.abs(chunk_flat)))
 
+                    # Calibrate ambient noise during initial 300ms
+                    if len(ambient_samples) < 2:
+                        ambient_samples.append(rms)
+                        if len(ambient_samples) == 2:
+                            ambient_floor = float(np.mean(ambient_samples))
+                            effective_threshold = max(energy_threshold, ambient_floor * 2.5)
+                            audit_logger.debug("Ambient noise floor: %.5f, effective speech threshold: %.5f", ambient_floor, effective_threshold)
+
                     if on_chunk:
                         on_chunk(self.last_audio_level, total_time)
 
-                    if rms >= energy_threshold:
+                    if rms >= effective_threshold:
                         speech_started = True
                         silence_elapsed = 0.0
                     else:
@@ -96,12 +125,12 @@ class AudioIO:
                                 audit_logger.info("Speech endpoint detected (%.2fs silence). Ending capture.", silence_elapsed)
                                 break
                         else:
-                            # User hasn't started speaking yet; allow up to 7 seconds before idle timeout
-                            if total_time >= 7.0:
-                                audit_logger.info("No speech detected after 7s. Ending capture.")
+                            # User hasn't started speaking; wait at most initial_silence_timeout_sec (1.5s)
+                            if total_time >= initial_silence_timeout_sec:
+                                audit_logger.info("No speech detected within %.1fs. Returning to standby for new conversation.", initial_silence_timeout_sec)
                                 break
 
-            if not chunks:
+            if not chunks or not speech_started:
                 return None
 
             raw_audio = np.concatenate(chunks)
@@ -114,14 +143,20 @@ class AudioIO:
             else:
                 resampled = raw_audio
 
-            # Gain normalization for clear Whisper transcription
-            max_val = np.max(np.abs(resampled))
-            if max_val > 0.003:
-                gain = min(0.75 / max_val, 15.0)
-                resampled = resampled * gain
+            # Apply high-pass filter at 80 Hz to remove fan hum / desk rumble
+            filtered = apply_highpass_filter(resampled, sample_rate=self.target_rate, cutoff=80.0)
 
-            resampled = np.clip(resampled, -1.0, 1.0)
-            return (resampled * 32767.0).astype(np.int16)
+            # Gain normalization only for genuine speech signals
+            max_val = float(np.max(np.abs(filtered)))
+            if max_val >= 0.015:
+                gain = min(0.85 / max_val, 10.0)
+                filtered = filtered * gain
+            else:
+                audit_logger.info("Audio signal too quiet (peak: %.4f). Treating as silence.", max_val)
+                return None
+
+            filtered = np.clip(filtered, -1.0, 1.0)
+            return (filtered * 32767.0).astype(np.int16)
 
         except Exception as e:
             audit_logger.error("Dynamic speech recording failed: %s", e)

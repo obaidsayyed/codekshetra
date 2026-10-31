@@ -102,12 +102,14 @@ class BackgroundVoiceListener:
         speech_active = False
 
         while self.is_running:
+            from app.orchestration.engine import workflow_engine
+
             if self.is_paused or audio_io.is_muted or audio_io.is_recording:
                 time.sleep(0.1)
                 continue
 
-            if tts.is_speaking or voice_session.state != SessionState.IDLE:
-                time.sleep(0.1)
+            if tts.is_speaking or voice_session.state != SessionState.IDLE or voice_session.is_task_executing or workflow_engine.is_busy:
+                time.sleep(0.15)
                 continue
 
             try:
@@ -119,8 +121,8 @@ class BackgroundVoiceListener:
                 ) as stream:
                     audit_logger.info("Microphone stream opened for background wake detection.")
                     while self.is_running and not self.is_paused and not audio_io.is_muted and not audio_io.is_recording:
-                        if tts.is_speaking or voice_session.state != SessionState.IDLE:
-                            time.sleep(0.1)
+                        if tts.is_speaking or voice_session.state != SessionState.IDLE or voice_session.is_task_executing or workflow_engine.is_busy:
+                            time.sleep(0.15)
                             break
 
                         data, _ = stream.read(chunk_samples)
@@ -146,13 +148,14 @@ class BackgroundVoiceListener:
                                 slice_1280 = chunk_int16[idx:idx + 1280]
                                 if self.detector.predict(slice_1280):
                                     audit_logger.info("openWakeWord model triggered.")
-                                    self._handle_wake("Hey Jarvis")
                                     speech_buffer.clear()
                                     speech_active = False
+                                    self._handle_wake("Hey Jarvis")
                                     break
 
                         # 2. Continuous Speech Buffer & VAD for 'Hey SUNDAY' / 'SUNDAY'
-                        if rms >= 0.005:
+                        # Reject ambient noise floor (< 0.015)
+                        if rms >= 0.015:
                             speech_active = True
                             silence_after_speech_sec = 0.0
                             speech_buffer.append(chunk_int16)
@@ -164,7 +167,7 @@ class BackgroundVoiceListener:
                                 silence_after_speech_sec += chunk_duration
                                 speech_buffer.append(chunk_int16)
 
-                                # Speech pause / endpoint reached
+                                # Speech pause / endpoint reached (0.6s)
                                 if silence_after_speech_sec >= 0.6:
                                     speech_active = False
                                     silence_after_speech_sec = 0.0
@@ -197,9 +200,19 @@ class BackgroundVoiceListener:
         audit_logger.info("Wake word activated with utterance: '%s'", detected_text)
         from app.voice.session import voice_session
         from app.voice.tts import tts
+        from app.orchestration.engine import workflow_engine
+
+        # Immediately pause listener to prevent re-triggering during execution
+        self.pause()
 
         if self.on_wake_detected:
             self.on_wake_detected(detected_text)
+
+        # Reject if already executing
+        if voice_session.is_task_executing or workflow_engine.is_busy:
+            audit_logger.warning("Wake word ignored: task execution currently in progress.")
+            self.resume()
+            return
 
         # Extract possible inline command after the wake word (e.g. 'Hey Sunday open YouTube')
         cmd = re.sub(r'^(hey|hi|hello|ok|okay)?\s*(sunday|jarvis)[,\s]*', '', detected_text, flags=re.IGNORECASE).strip()
@@ -208,16 +221,22 @@ class BackgroundVoiceListener:
         if cmd and len(cmd) > 2:
             audit_logger.info("Executing inline command following wake word: '%s'", cmd)
             def run_inline():
-                voice_session.process_user_utterance(cmd)
+                try:
+                    voice_session.process_user_utterance(cmd)
+                finally:
+                    self.resume()
             threading.Thread(target=run_inline, daemon=True).start()
         else:
             def run_wake_prompt():
-                tts.speak("Yes? I am listening.")
-                if self.on_status_change:
-                    self.on_status_change("recording")
-                voice_session.trigger_push_to_talk()
-                if self.on_status_change:
-                    self.on_status_change("idle")
+                try:
+                    tts.speak("Yes? I am listening.")
+                    if self.on_status_change:
+                        self.on_status_change("recording")
+                    voice_session.trigger_push_to_talk()
+                finally:
+                    if self.on_status_change:
+                        self.on_status_change("idle")
+                    self.resume()
             threading.Thread(target=run_wake_prompt, daemon=True).start()
 
 

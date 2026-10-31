@@ -71,35 +71,46 @@ class OllamaClient:
     ) -> Dict[str, Any]:
         """
         Sends chat completion request enforcing JSON format and 4K context.
+        Attempts primary 9B model ('gemma2:9b') with fallback to 'qwen3:8b' or 'qwen2.5:3b'.
         """
         self.ensure_running()
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "stream": False,
-            "format": "json",
-            "options": {
-                "num_ctx": self.num_ctx,
-                "temperature": temperature
+        models_to_try = [self.model, "gemma2:9b", "qwen3:8b", "qwen2.5:3b"]
+        seen = set()
+        unique_models = [m for m in models_to_try if not (m in seen or seen.add(m))]
+
+        last_err = None
+        for m_name in unique_models:
+            payload = {
+                "model": m_name,
+                "messages": messages,
+                "stream": False,
+                "format": "json",
+                "options": {
+                    "num_ctx": self.num_ctx,
+                    "temperature": temperature
+                }
             }
-        }
-        
-        try:
-            with httpx.Client(timeout=timeout) as client:
-                response = client.post(f"{self.base_url}/api/chat", json=payload)
-                response.raise_for_status()
-                data = response.json()
-                content = data.get("message", {}).get("content", "")
-                
-                # Parse JSON
-                parsed = json.loads(content)
-                return parsed
-        except json.JSONDecodeError as jde:
-            audit_logger.error("Ollama returned invalid JSON: %s\nRaw output: %s", jde, content)
-            raise ValueError(f"Ollama returned malformed JSON: {str(jde)}")
-        except Exception as e:
-            audit_logger.error("Error communicating with Ollama: %s", e)
-            raise
+            try:
+                with httpx.Client(timeout=timeout) as client:
+                    response = client.post(f"{self.base_url}/api/chat", json=payload)
+                    if response.status_code == 404:
+                        continue
+                    response.raise_for_status()
+                    data = response.json()
+                    content = data.get("message", {}).get("content", "")
+                    
+                    parsed = json.loads(content)
+                    return parsed
+            except json.JSONDecodeError as jde:
+                audit_logger.error("Ollama returned invalid JSON: %s\nRaw output: %s", jde, content)
+                raise ValueError(f"Ollama returned malformed JSON: {str(jde)}")
+            except Exception as e:
+                last_err = e
+                audit_logger.warning("Attempt with Ollama model '%s' failed: %s. Trying next...", m_name, e)
+
+        if last_err:
+            raise last_err
+        raise RuntimeError("All Ollama models failed to respond.")
 
 
 ollama_client = OllamaClient()
