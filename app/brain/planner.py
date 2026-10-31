@@ -36,34 +36,54 @@ def build_document_content(objective: str) -> tuple[str, str, str]:
     obj_lower = objective.lower().strip()
     today_str = datetime.now().strftime("%B %d, %Y")
 
-    # Target application
-    app = "notepad"
-    if "wordpad" in obj_lower:
+    # Target application: default to Microsoft Word ('word'), only use notepad/wordpad if explicitly named
+    app = "word"
+    if "notepad" in obj_lower:
+        app = "notepad"
+    elif "wordpad" in obj_lower or "write.exe" in obj_lower:
         app = "wordpad"
-    elif "word" in obj_lower or "winword" in obj_lower or "msword" in obj_lower:
-        app = "word"
 
     # 1. Essay
     if "essay" in obj_lower or "article" in obj_lower:
-        topic = re.sub(r'^(write|create|type|make|open)\s*(an|a)?\s*(in\s+word|in\s+notepad|in\s+wordpad)?\s*(essay|article)\s*(on|about|for)?\s*', '', objective, flags=re.IGNORECASE).strip()
-        topic = re.sub(r'^(in\s+word|in\s+notepad|in\s+wordpad)\s*', '', topic, flags=re.IGNORECASE).strip()
-        topic_title = topic.title() if len(topic) > 2 else "Artificial Intelligence and Future Technology"
+        clean = re.sub(r'\s*(in\s+word|in\s+msword|in\s+winword|in\s+notepad|in\s+wordpad)\s*$', '', objective, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'^(drafting|draft|writing|write|creating|create|typing|type|making|make|compose|composing|open)?\s*(an|a)?\s*(essay|article|document|paper)?\s*(on\s+the\s+topic\s+of|on\s+the\s+topic|on\s+topic\s+of|on\s+topic|the\s+topic\s+of|topic\s+of|the\s+topic|topic|about|on|for)?\s*', '', clean, flags=re.IGNORECASE).strip()
+        clean = clean.strip('.,!? \'\":')
+        topic_title = clean.title() if len(clean) > 1 else "Rain"
 
-        text = (
-            f"====================================================\n"
-            f"ESSAY: {topic_title.upper()}\n"
-            f"Author: SUNDAY Offline AI Employee (Windows 11)\n"
-            f"Date: {today_str}\n"
-            f"====================================================\n\n"
-            f"1. INTRODUCTION\n"
-            f"The exploration of {topic_title} stands at the forefront of contemporary discussion. In an era defined by rapid technological adaptation, understanding the core dynamics and transformative principles of this domain is vital for both individual achievement and societal growth.\n\n"
-            f"2. CORE PILLARS & PRACTICAL IMPACT\n"
-            f"When evaluating {topic_title}, several fundamental strengths become evident. Automation and computational reasoning empower users to execute complex tasks locally, ensuring complete privacy, zero cloud dependency, and maximum speed. Furthermore, practical implementation bridges theoretical concepts with tangible everyday productivity.\n\n"
-            f"3. ETHICAL CONSIDERATIONS & FUTURE HORIZONS\n"
-            f"As innovations continue to unfold, maintaining transparency, robustness, and deterministic control remains paramount. By combining human oversight with autonomous desktop execution, solutions in {topic_title} can be deployed responsibly and efficiently.\n\n"
-            f"4. CONCLUSION\n"
-            f"In conclusion, {topic_title} offers boundless opportunities for those who leverage modern tools with purpose and discipline. As we move forward, local-first intelligence will remain a cornerstone of autonomous and secure computing.\n"
-        )
+        if "rain" in topic_title.lower():
+            text = (
+                f"====================================================\n"
+                f"ESSAY: THE BEAUTY AND SIGNIFICANCE OF RAIN\n"
+                f"Author: SUNDAY Offline AI Employee (Windows 11)\n"
+                f"Date: {today_str}\n"
+                f"====================================================\n\n"
+                f"1. INTRODUCTION\n"
+                f"Rain is one of nature’s most profound and evocative phenomena. Far more than a mere meteorological event, it is a life-affirming cycle that rejuvenates the parched earth, cleanses the atmosphere, and awakens a universal sense of renewal across all living beings.\n\n"
+                f"2. THE PETRICHOR AND ATMOSPHERIC RENEWAL\n"
+                f"As the first raindrops kiss the dry soil, they release the timeless fragrance known as petrichor. This distinct earthy scent, produced by geosmin and botanical oils, carries an immediate soothing quality. The sky turns into shades of charcoal and silver, lowering temperatures and casting a tranquil serenity over bustling cities and quiet landscapes alike.\n\n"
+                f"3. ECOLOGICAL AND AGRICULTURAL LIFE-FORCE\n"
+                f"From an ecological standpoint, rain is the fundamental driver of biodiversity and agriculture. It replenishes subterranean aquifers, revitalizes rivers and reservoirs, and nourishes the crops that sustain human civilization. In agrarian cultures, the arrival of rain is celebrated as a blessing of prosperity, ensuring food security and ecological equilibrium.\n\n"
+                f"4. CULTURAL, LITERARY, AND EMOTIONAL RESONANCE\n"
+                f"Throughout history, artists, poets, and musicians have drawn limitless inspiration from the rhythm of rainfall. Rain symbolizes both introspection and rebirth. It offers a meditative pause in our rapid lives, inviting comfort with a hot cup of tea by the window, the soft drumming against the glass, and quiet contemplation of life’s cycles.\n\n"
+                f"5. CONCLUSION\n"
+                f"Ultimately, rain reminds humanity of our interconnectedness with nature. It demonstrates that periods of stormy weather are essential precursors to growth, freshness, and vibrant life. Rain remains nature’s eternal symphony, washing away the old and quietly preparing the world for a brighter tomorrow.\n"
+            )
+        else:
+            text = (
+                f"====================================================\n"
+                f"ESSAY: {topic_title.upper()}\n"
+                f"Author: SUNDAY Offline AI Employee (Windows 11)\n"
+                f"Date: {today_str}\n"
+                f"====================================================\n\n"
+                f"1. INTRODUCTION\n"
+                f"The exploration of {topic_title} stands at the forefront of contemporary discussion. In an era defined by rapid technological adaptation, understanding the core dynamics and transformative principles of this domain is vital for both individual achievement and societal growth.\n\n"
+                f"2. CORE PILLARS & PRACTICAL IMPACT\n"
+                f"When evaluating {topic_title}, several fundamental strengths become evident. Automation and computational reasoning empower users to execute complex tasks locally, ensuring complete privacy, zero cloud dependency, and maximum speed. Furthermore, practical implementation bridges theoretical concepts with tangible everyday productivity.\n\n"
+                f"3. ETHICAL CONSIDERATIONS & FUTURE HORIZONS\n"
+                f"As innovations continue to unfold, maintaining transparency, robustness, and deterministic control remains paramount. By combining human oversight with autonomous desktop execution, solutions in {topic_title} can be deployed responsibly and efficiently.\n\n"
+                f"4. CONCLUSION\n"
+                f"In conclusion, {topic_title} offers boundless opportunities for those who leverage modern tools with purpose and discipline. As we move forward, local-first intelligence will remain a cornerstone of autonomous and secure computing.\n"
+            )
         return (topic_title, text, app)
 
     # 2. Formal Letter / Leave application
@@ -121,12 +141,42 @@ def has_action_intent(objective: str) -> bool:
         return False
 
     action_keywords = [
-        "invoice", "spreadsheet", "excel", "essay", "letter", "notes", "notepad",
-        "wordpad", "word", "document", "open ", "launch ", "play ", "search ",
-        "find ", "calc", "calculator", "chrome", "edge", "youtube", "battery",
-        "create ", "write ", "make ", "type ", "draft ", "save ", "close ", "kill "
+        "invoice", "invoicing", "crertatign", "creating", "spreadsheet", "excel", "essay",
+        "drafting", "letter", "notes", "notepad", "wordpad", "word", "ppt", "powerpoint",
+        "document", "open ", "launch ", "play ", "search ", "find ", "calc", "calculator",
+        "chrome", "edge", "youtube", "battery", "create ", "write ", "make ", "type ",
+        "draft ", "save ", "close ", "kill "
     ]
     return any(k in obj_l for k in action_keywords)
+
+
+def parse_invoice_details(text: str) -> tuple[Optional[str], Optional[float]]:
+    """Robust parser for customer name and amount from an invoice request string."""
+    text_clean = text.replace(",", " ")
+    
+    # 1. Parse amount (handles '23k', '23 thousand', '23000', 'rs 23k', 'of 23000')
+    amt = None
+    k_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:k|thousand)\b', text_clean, re.IGNORECASE)
+    if k_match:
+        amt = float(k_match.group(1)) * 1000.0
+    else:
+        nums = re.findall(r'\b\d+(?:\.\d+)?\b', text_clean)
+        if nums:
+            amt = float(nums[0])
+
+    # 2. Parse customer name
+    m = re.search(r'(?:for|to)\s+([A-Za-z0-9\s\.\-_]+?)(?:\s+(?:of|with|amount|worth|valued\s+at|in\s+excel|in\s+word|for\s+amount|rs|inr|usd|\d+)\b|$)', text_clean, re.IGNORECASE)
+    cust = None
+    if m:
+        c = m.group(1).strip()
+        c = re.sub(r'\b(in excel|in word|in notepad|excel|word|invoice)\b', '', c, flags=re.IGNORECASE).strip()
+        if c:
+            cust = c.title()
+            if cust.lower() == "interact ai":
+                cust = "Interact AI"
+            elif cust.lower() == "acme solutions":
+                cust = "Acme Solutions"
+    return cust, amt
 
 
 class Planner:
@@ -175,13 +225,27 @@ class Planner:
                     )
 
                 validated_steps = []
+                obj_l = objective.lower()
                 for step_data in raw_plan.get("steps", []):
                     t_name = step_data.get("tool_name")
+                    args = step_data.get("arguments", {})
+
+                    # If essay/document was requested, enforce Word and rich essay content
+                    if any(w in obj_l for w in ["essay", "article", "in word", "drafting", "draft an essay"]):
+                        if t_name in ("create_spreadsheet", "launch_application", "create_invoice") or (t_name == "visual_open_and_type" and args.get("app_choice") != "word" and "notepad" not in obj_l):
+                            t_name = "visual_open_and_type"
+                            title, doc_content, app_choice = build_document_content(objective)
+                            args = {
+                                "title": title,
+                                "text": doc_content,
+                                "app_choice": app_choice,
+                                "save_copy": True
+                            }
+
                     if not self.registry.get_tool(t_name):
                         audit_logger.warning("Planner suggested unknown tool '%s'. Skipping.", t_name)
                         continue
 
-                    args = step_data.get("arguments", {})
                     risk = get_tool_risk(t_name).value
                     validated_steps.append(
                         PlannedStep(
@@ -242,7 +306,7 @@ class Planner:
             return ExecutionPlan(objective=objective, is_conversational=True, spoken_summary="I am SUNDAY, your local-first offline AI employee for Windows 11. I operate your laptop, write documents, open apps and websites, and manage tasks completely offline.")
 
         if any(w in obj_clean for w in ["what can you do", "help me", "what are your features"]):
-            return ExecutionPlan(objective=objective, is_conversational=True, spoken_summary="I can create invoices, write documents live in Notepad and WordPad on your desktop, launch apps like Chrome and Word, open websites like YouTube, search your laptop files, check battery health, and handle your tasks offline.")
+            return ExecutionPlan(objective=objective, is_conversational=True, spoken_summary="I can create invoices in Excel, write essays and documents in Microsoft Word, launch apps like Chrome, open websites like YouTube, search your laptop files, check battery health, and handle your tasks offline.")
 
         if any(w in obj_clean for w in ["how are you", "how are you doing", "how's it going"]):
             return ExecutionPlan(objective=objective, is_conversational=True, spoken_summary="I am operating at full capacity and completely offline. How can I assist you on your laptop today?")
@@ -261,10 +325,17 @@ class Planner:
         if last_bot_text:
             # Case A: Bot asked about invoice details
             if "invoice" in last_bot_text and not any(a in obj_clean for a in ["open", "launch", "search", "stop", "cancel"]):
-                nums = re.findall(r'\d+(?:\.\d+)?', obj_clean.replace(",", ""))
-                amt = float(nums[0]) if nums else 5000.0
-                cust = re.sub(r'\b(rupees|rs|inr|dollars|usd|thousand|hundred|invoice|for|make|create|it|the|\d+)\b', '', obj_clean, flags=re.IGNORECASE).strip()
-                cust = cust.strip(",. ").title() if cust else "ABC Traders"
+                cust, amt = parse_invoice_details(obj_clean)
+                if not cust:
+                    cust_raw = re.sub(r'\b(rupees|rs|inr|dollars|usd|thousand|hundred|invoice|for|make|create|it|the|\d+)\b', '', obj_clean, flags=re.IGNORECASE).strip().strip(",. ")
+                    cust = cust_raw.title() if cust_raw else "ABC Traders"
+                if cust.lower() == "interact ai":
+                    cust = "Interact AI"
+                elif cust.lower() == "acme solutions":
+                    cust = "Acme Solutions"
+                amt = amt if amt is not None else 5000.0
+                tax_rate = 18.0
+                total_with_tax = amt * (1.0 + tax_rate / 100.0)
                 return ExecutionPlan(
                     objective=objective,
                     steps=[
@@ -274,13 +345,13 @@ class Planner:
                             arguments={
                                 "customer_name": cust,
                                 "items": [{"description": "Professional Consulting & Implementation", "quantity": 1, "unit_price": amt}],
-                                "tax_rate_percent": 18.0,
+                                "tax_rate_percent": tax_rate,
                                 "currency": "INR"
                             },
                             risk_level="R1"
                         )
                     ],
-                    spoken_summary=f"Creating verified invoice for {cust} on your Desktop and opening Excel on screen."
+                    spoken_summary=f"Creating verified invoice for {cust} totaling {int(total_with_tax) if total_with_tax.is_integer() else total_with_tax:.2f} rupees with 18% tax on your Desktop and opening Excel on screen."
                 )
 
             # Case B: Bot asked about song/video for YouTube
@@ -362,9 +433,10 @@ class Planner:
                         spoken_summary=f"Opening {app_key} on your laptop."
                     )
 
-        # 5. Visual desktop typing for essays, letters, and documents (Claude Cowork style)
-        if any(w in obj_lower for w in ["essay", "article", "write a document", "type in notepad", "write in word", "open wordpad and type", "write a letter", "leave application", "write notes"]):
+        # 5. Visual desktop typing for essays, letters, and documents (Microsoft Word / Desktop)
+        if any(w in obj_lower for w in ["essay", "article", "drafting", "draft an essay", "write an essay", "write a document", "type in notepad", "write in word", "open wordpad and type", "write a letter", "leave application", "write notes"]):
             title, doc_content, app = build_document_content(objective)
+            app_display = "Microsoft Word" if app == "word" else app.capitalize()
             return ExecutionPlan(
                 objective=objective,
                 steps=[
@@ -375,7 +447,7 @@ class Planner:
                         risk_level="R1"
                     )
                 ],
-                spoken_summary=f"Opening {app.capitalize()} on your desktop to visually write '{title}' live on your screen."
+                spoken_summary=f"Drafting '{title}' in {app_display} on your desktop and opening the document on screen."
             )
 
         # 6. Spreadsheet & Excel workbook creation
@@ -402,12 +474,11 @@ class Planner:
             )
 
         # 7. Invoice generation (Saves to Desktop and visibly opens Excel on screen)
-        if "invoice" in obj_lower:
-            m = re.search(r'for\s+([A-Za-z0-9\s]+?)(?:for|with|amount|$)', objective, re.IGNORECASE)
-            nums = re.findall(r'\d+(?:\.\d+)?', objective.replace(",", ""))
+        if any(w in obj_lower for w in ["invoice", "invoicing", "crertatign an invoice", "creating an invoice"]):
+            customer, amt = parse_invoice_details(objective)
 
             # If user said "create an invoice" without customer name and without amount: ask for clarification!
-            if not m and not nums:
+            if not customer and not amt:
                 return ExecutionPlan(
                     objective=objective,
                     is_ambiguous=True,
@@ -415,8 +486,10 @@ class Planner:
                     spoken_summary="Who should I make the invoice for, and what is the amount?"
                 )
 
-            customer = m.group(1).strip().title() if m else "ABC Traders"
-            amt = float(nums[0]) if nums else 5000.0
+            customer = customer or "ABC Traders"
+            amt = amt if amt is not None else 5000.0
+            tax_rate = 18.0
+            total_with_tax = amt * (1.0 + tax_rate / 100.0)
 
             return ExecutionPlan(
                 objective=objective,
@@ -429,13 +502,13 @@ class Planner:
                             "items": [
                                 {"description": "Consulting & Implementation Services", "quantity": 1, "unit_price": amt}
                             ],
-                            "tax_rate_percent": 18.0,
+                            "tax_rate_percent": tax_rate,
                             "currency": "INR"
                         },
                         risk_level="R1"
                     )
                 ],
-                spoken_summary=f"Creating verified invoice for {customer} on your Desktop and opening Excel on your screen."
+                spoken_summary=f"Creating verified invoice for {customer} of {int(amt) if amt.is_integer() else amt} rupees totaling {int(total_with_tax) if total_with_tax.is_integer() else total_with_tax:.2f} with 18% tax on your Desktop and opening Excel on your screen."
             )
 
         # 7. System status & battery

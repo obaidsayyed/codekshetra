@@ -142,18 +142,7 @@ class BackgroundVoiceListener:
 
                         chunk_int16 = (np.clip(chunk_16k, -1.0, 1.0) * 32767.0).astype(np.int16)
 
-                        # 1. Test openWakeWord on 1280-sample frames (detects 'Hey Jarvis')
-                        if len(chunk_int16) >= 1280:
-                            for idx in range(0, len(chunk_int16) - 1280 + 1, 1280):
-                                slice_1280 = chunk_int16[idx:idx + 1280]
-                                if self.detector.predict(slice_1280):
-                                    audit_logger.info("openWakeWord model triggered.")
-                                    speech_buffer.clear()
-                                    speech_active = False
-                                    self._handle_wake("Hey Jarvis")
-                                    break
-
-                        # 2. Continuous Speech Buffer & VAD for 'Hey SUNDAY' / 'SUNDAY'
+                        # Continuous Speech Buffer & VAD strictly for 'Sunday' / 'Hey Sunday'
                         # Reject ambient noise floor (< 0.015)
                         if rms >= 0.015:
                             speech_active = True
@@ -182,9 +171,10 @@ class BackgroundVoiceListener:
                                             txt = res.get("text", "").strip()
                                             txt_lower = txt.lower()
 
+                                            # Strict Sunday wake words only
                                             wake_triggers = [
                                                 "sunday", "hey sunday", "hi sunday",
-                                                "hello sunday", "ok sunday", "jarvis", "hey jarvis"
+                                                "hello sunday", "ok sunday"
                                             ]
                                             if any(w in txt_lower for w in wake_triggers):
                                                 audit_logger.info("Spoken wake detected: '%s'", txt)
@@ -215,7 +205,7 @@ class BackgroundVoiceListener:
             return
 
         # Extract possible inline command after the wake word (e.g. 'Hey Sunday open YouTube')
-        cmd = re.sub(r'^(hey|hi|hello|ok|okay)?\s*(sunday|jarvis)[,\s]*', '', detected_text, flags=re.IGNORECASE).strip()
+        cmd = re.sub(r'^(hey|hi|hello|ok|okay)?\s*(sunday)[,\s]*', '', detected_text, flags=re.IGNORECASE).strip()
         cmd = cmd.lstrip(".,!? ").strip()
 
         if cmd and len(cmd) > 2:

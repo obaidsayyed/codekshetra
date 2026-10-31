@@ -21,10 +21,10 @@ Operating Rules:
    - Pay close attention to recent conversation history!
    - Combine follow-up responses with previous context to execute the user's intended workflow.
 4. Computer & Laptop Tools:
+   - "visual_open_and_type": title, text, app_choice ("word", "wordpad", "notepad"). For essays, articles, letters, and documents: ALWAYS use app_choice: "word" (Microsoft Word)! Never use spreadsheet or notepad for essays or word documents!
    - "create_invoice": customer_name, items (list of {description, quantity, unit_price}), tax_rate_percent, currency
-   - "visual_open_and_type": title, text, app_choice ("notepad" or "wordpad")
-   - "create_spreadsheet": filename, headers, rows
-   - "launch_application": app_name (e.g. "youtube", "chrome", "calc", "word", "excel", "notepad", "settings", "whatsapp")
+   - "create_spreadsheet": filename, headers, rows (Use for budgets, tables, numerical spreadsheets only)
+   - "launch_application": app_name (e.g. "youtube", "chrome", "calc", "word", "excel", "powerpoint", "notepad", "settings", "whatsapp")
    - "open_folder": folder ("Desktop", "Downloads", "Documents", "Workspace")
    - "create_email_draft": recipient, subject, body
    - "create_message_draft": recipient, message_text

@@ -120,11 +120,34 @@ def test_dynamic_endpointing_and_noise_filtering():
     assert hasattr(audio_io, "record_speech_dynamic")
 
 
-def test_qwen3_8b_configuration_and_medium_stt():
+def test_model_configuration_and_stt():
     from app.config.settings import settings
     from app.voice.stt import stt
 
-    # Verify Qwen3 8B model selection and medium.en STT selection
-    assert settings.ollama_model == "qwen3:8b"
+    # Verify low-latency fast model qwen2.5:3b and high-accuracy STT
+    assert settings.ollama_model == "qwen2.5:3b"
     assert settings.whisper_model_name == "medium.en"
+    assert "sunday" in settings.wake_words
+    assert "hey jarvis" not in settings.wake_words
     assert stt.model_name in ("medium.en", "small.en", "base.en", "tiny")
+
+
+def test_user_rain_essay_word_and_interact_ai_invoice():
+    from app.brain.planner import planner
+
+    # 1. Essay in Microsoft Word
+    p_essay = planner._deterministic_plan("drafting an essay on the topic rain in word")
+    assert len(p_essay.steps) == 1
+    assert p_essay.steps[0].tool_name == "visual_open_and_type"
+    assert p_essay.steps[0].arguments["app_choice"] == "word"
+    assert p_essay.steps[0].arguments["title"] == "Rain"
+    assert "Rain" in p_essay.steps[0].arguments["text"]
+
+    # 2. Invoice for Interact AI of Rs 23k in Excel
+    p_inv = planner._deterministic_plan("crertatign an invoice for interact ai of rs 23k in excel")
+    assert len(p_inv.steps) == 1
+    assert p_inv.steps[0].tool_name == "create_invoice"
+    assert p_inv.steps[0].arguments["customer_name"] == "Interact AI"
+    assert p_inv.steps[0].arguments["items"][0]["unit_price"] == 23000.0
+    # Tax total 23000 * 1.18 = 27140
+    assert "27140" in p_inv.spoken_summary

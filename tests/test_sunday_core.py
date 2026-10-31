@@ -322,3 +322,26 @@ def test_visual_desktop_automation():
     assert res.success is True
     assert res.data["typed_live"] is True
     assert Path(res.output_path).exists()
+
+
+def test_visual_word_essay_automation():
+    """
+    User Acceptance Requirement:
+    Draft essay in Microsoft Word, generating formatted .docx and launching Word on screen.
+    """
+    tool = VisualOpenAndTypeTool()
+    res = tool.execute(
+        title="Rain",
+        text="1. INTRODUCTION\nRain is one of nature's most profound phenomena.\n\n2. CONCLUSION\nRain remains nature's eternal symphony.",
+        app_choice="word",
+        save_copy=True
+    )
+    assert res.success is True
+    assert res.data["application"] == "WINWORD.EXE"
+    assert Path(res.output_path).exists()
+    assert res.output_path.endswith(".docx")
+    # Verify generated DOCX has heading and text
+    doc = docx.Document(res.output_path)
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    assert "Rain" in full_text
+
