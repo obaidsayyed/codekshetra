@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Local Data and Models (Privacy & Git cleanliness)
+data/sunday.db
+data/sunday.db-wal
+data/sunday.db-shm
+data/sunday.log
+data/temp/
+data/backups/
+data/models/
+data/workspace/
+
+# Environment and secrets
+.env
+*.pem
+*.key
+
+# Pytest & Cache
+.pytest_cache/
+.coverage
+htmlcov/
+

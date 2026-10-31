@@ -1,0 +1,118 @@
+"""
+Local Speech-to-Text module for SUNDAY.
+Offline inference using faster-whisper with INT8 quantization on CPU.
+"""
+import re
+from pathlib import Path
+from typing import Dict, Any, Optional
+import numpy as np
+from faster_whisper import WhisperModel
+from app.config.settings import settings
+from app.audit.logger import audit_logger
+
+
+def sanitize_transcribed_text(raw_text: str) -> str:
+    """Removes bracketed Whisper artifacts and common silence hallucinations."""
+    if not raw_text:
+        return ""
+    # Remove bracketed hallucinations like [Music], (applause), [Applause], (silence)
+    cleaned = re.sub(r'\[.*?\]|\(.*?\)', '', raw_text).strip()
+    hallucinations = {
+        "thank you for watching", "thanks for watching", "subscribe to my channel",
+        "see you next time", "thank you", "thanks", "you", "bye", "subtitles by"
+    }
+    if cleaned.lower() in hallucinations:
+        return ""
+    return cleaned
+
+
+class SpeechToText:
+    def __init__(self, model_dir: Optional[Path] = None, model_name: Optional[str] = None):
+        self.model_dir = model_dir or settings.whisper_model_dir
+        self.model_name = model_name or getattr(settings, "whisper_model_name", "base.en")
+        self._model: Optional[WhisperModel] = None
+
+    def _get_model(self) -> WhisperModel:
+        if self._model is None:
+            # Try preferred model (base.en for high English accuracy)
+            try:
+                audit_logger.info("Loading offline Whisper model '%s' from %s...", self.model_name, self.model_dir)
+                self._model = WhisperModel(
+                    self.model_name,
+                    device="cpu",
+                    compute_type="int8",
+                    download_root=str(self.model_dir),
+                    local_files_only=True
+                )
+                audit_logger.info("Whisper model '%s' loaded successfully.", self.model_name)
+            except Exception as e:
+                audit_logger.warning("Could not load '%s' (%s). Falling back to 'tiny'.", self.model_name, e)
+                self._model = WhisperModel(
+                    "tiny",
+                    device="cpu",
+                    compute_type="int8",
+                    download_root=str(self.model_dir),
+                    local_files_only=True
+                )
+                audit_logger.info("Whisper tiny fallback loaded successfully.")
+        return self._model
+
+    def transcribe_file(self, wav_path: str, language: Optional[str] = "en") -> Dict[str, Any]:
+        """Transcribes a WAV file locally. Defaults to English ('en') to prevent foreign script hallucinations."""
+        target = Path(wav_path)
+        if not target.exists():
+            return {"text": "", "language": "en", "confidence": 0.0, "error": "Audio file not found"}
+
+        model = self._get_model()
+        # Default to English ('en') unless specified, preventing cross-language hallucination
+        lang = language if language else "en"
+        segments, info = model.transcribe(
+            str(target),
+            language=lang,
+            beam_size=1,
+            initial_prompt="SUNDAY, offline AI employee for Windows 11. Create invoice in Excel, write essay in Word, Notepad, spreadsheet, open YouTube, Chrome, calculator, files, letter.",
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=400)
+        )
+
+        text_pieces = []
+        confidences = []
+        for segment in segments:
+            text_pieces.append(segment.text)
+            if hasattr(segment, 'avg_logprob'):
+                confidences.append(float(np.exp(segment.avg_logprob)))
+
+        raw_text = " ".join(text_pieces).strip()
+        full_text = sanitize_transcribed_text(raw_text)
+        avg_confidence = float(np.mean(confidences)) if confidences else 1.0
+
+        audit_logger.info("Local STT transcribed: '%s' (lang: %s, conf: %.2f)", full_text, info.language, avg_confidence)
+        return {
+            "text": full_text,
+            "language": info.language,
+            "confidence": avg_confidence
+        }
+
+    def transcribe_audio(
+        self,
+        audio_data: np.ndarray,
+        temp_path: Optional[Path] = None,
+        language: Optional[str] = "en"
+    ) -> Dict[str, Any]:
+        """Convenience method to transcribe raw numpy audio. Defaults to English ('en')."""
+        if temp_path is None:
+            temp_path = settings.temp_dir / "stt_temp.wav"
+        from app.voice.audio_io import audio_io
+        audio_io.save_wav(audio_data, temp_path)
+        result = self.transcribe_file(str(temp_path), language=language)
+        # Remove temp audio after processing (Privacy requirement)
+        try:
+            if temp_path.exists():
+                temp_path.unlink()
+        except Exception:
+            pass
+        return result
+
+
+stt = SpeechToText()
+
