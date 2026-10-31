@@ -4,83 +4,35 @@
 > **Product Identity**: SUNDAY  
 > **Target OS**: Windows 11 Desktop Session (64-bit)  
 > **Offline Status**: 100% Operational without Cloud Services or Outbound Telemetry  
-> **Acceptance Tests**: 27 / 27 Passed (100%)
+> **Acceptance Tests**: 27 / 27 Passed in 19.80s (100%)
 
 ---
 
 ## 1. Executive Summary
 
-**SUNDAY** is a local-first, voice-driven AI employee engineered for Windows 11. It operates 100% offline using locally hosted models:
-- **Wake Word**: Strictly **"Sunday"** or **"Hey Sunday"** (all references and triggers for "Jarvis" removed).
-- **Core Reasoning LLM**: Reverted to **`qwen2.5:3b`** (1.9 GB) hosted on local Ollama, eliminating CPU inference latency and responding in ~1 second.
-- **Document Authoring**: Directly targets **Microsoft Word** (`WINWORD.EXE`) using `python-docx` for rich formatting, headings, and styling, saving directly to `Desktop\<Title>.docx` and presenting Word live on screen.
-- **Spreadsheets & Invoices**: Directly targets **Microsoft Excel** (`EXCEL.EXE`) using `openpyxl`, computing exact deterministic financial figures via Python `Decimal`, saving directly to `Desktop\Invoice_..._<Customer>.xlsx` and presenting Excel live on screen.
-- **Speech Recognition (ASR)**: Uses deterministic temperature `0` with `faster-whisper-medium.en` (1.5 GB locally cached) with beam search ($N=5$) and VAD speech filtering for zero-error English voice capture.
-- **Speech Synthesis (TTS)**: Uses Piper neural ONNX (`en_US-lessac-medium.onnx`) with half-duplex mic muting to prevent self-triggering and speech feedback loops.
+**SUNDAY** has been upgraded to a clean, deterministic, local-first workflow:
+$$\text{User Speaks} \longrightarrow \text{Whisper STT} \longrightarrow \text{Ollama LLM} \longrightarrow \text{Tool Execution} \longrightarrow \text{Live Desktop Window} \longrightarrow \text{Single Spoken Result}$$
+
+### Key Improvements Implemented:
+1. **Dynamic Microphone Capture**: Increased initial pause cutoff from 1.5s to **5.0s**, ensuring long sentences and natural speaking pauses are never truncated.
+2. **Robust Ollama JSON Bridge**: Added regex-based JSON extraction in `ollama_client.py` so conversational introductions or markdown fences never crash into fallbacks.
+3. **True LLM Content Generation**: Preserves dynamic text and outlines produced by Ollama rather than overwriting with hardcoded Python templates.
+4. **Single Spoken Feedback (No Double-Speaking)**: Completely eliminated premature pre-execution speech. SUNDAY executes silently while opening the app live on screen, then speaks **once** upon completion.
+5. **Purged Notepad from Test Matrix**: Tests in `tests/` now assert Microsoft Word (`WINWORD.EXE`) and Microsoft Excel (`EXCEL.EXE`). Test suite run time improved from 121 seconds down to **19.8 seconds**.
 
 ```mermaid
-flowchart TD
-    User["Owner (Spoken Voice / Desktop Session)"]
-    Mic["Microphone (16 kHz Mono PCM + 80Hz Butterworth Filter)"]
-    WW["VAD Wake Detector ('Sunday' / 'Hey Sunday')"]
-    STT["faster-whisper ASR (Temperature 0 / Beam Size 5)"]
-    Brain["Ollama Localhost (qwen2.5:3b / Fast 1s Latency)"]
-    Orch["Workflow Engine & SQLite State Machine"]
-    Word["Microsoft Word (WINWORD.EXE / .docx on Desktop)"]
-    Excel["Microsoft Excel (EXCEL.EXE / .xlsx on Desktop)"]
-    Apps["Windows App Paths (Chrome, YouTube, PowerPoint, Explorer)"]
-    TTS["Piper Neural TTS (ONNX Offline)"]
-    Spk["Local Speakers (Half-Duplex)"]
-
-    User -->|Voice| Mic
-    Mic --> WW
-    WW --> STT
-    STT --> Brain
-    Brain --> Orch
-    Orch --> Word
-    Orch --> Excel
-    Orch --> Apps
-    Orch --> TTS
-    TTS --> Spk
+flowchart LR
+    User["1. User Speaks ('Sunday')"] --> Mic["2. Audio IO (5s initial timeout)"]
+    Mic --> STT["3. Whisper ASR (medium.en / temp=0)"]
+    STT --> LLM["4. Ollama (qwen2.5:3b / regex JSON parser)"]
+    LLM --> Exec["5. Document / Spreadsheet Tool"]
+    Exec --> Live["6. WINWORD.EXE / EXCEL.EXE on Desktop"]
+    Live --> TTS["7. Piper Neural TTS (Speaks Once on Completion)"]
 ```
 
 ---
 
-## 2. Verified User Acceptance Tasks
-
-### A. Task 1: "drafting an essay on the topic rain in word"
-- **Input Command**: Spoken or text: *"drafting an essay on the topic rain in word"*
-- **Target Application**: Microsoft Word (`C:\Program Files\Microsoft Office\Root\Office16\WINWORD.EXE`).
-- **Generated File**: `C:\Users\omban\Desktop\Essay_on_Rain.docx`
-- **Document Structure**:
-  - Title: *"THE BEAUTY AND SIGNIFICANCE OF RAIN"*
-  - Metadata: Author and Date
-  - Heading 1: *1. INTRODUCTION*
-  - Heading 1: *2. THE PETRICHOR AND ATMOSPHERIC RENEWAL*
-  - Heading 1: *3. ECOLOGICAL AND AGRICULTURAL LIFE-FORCE*
-  - Heading 1: *4. CULTURAL, LITERARY, AND EMOTIONAL RESONANCE*
-  - Heading 1: *5. CONCLUSION*
-- **Desktop Behavior**: Microsoft Word (`WINWORD.EXE`) launches live on screen with the rendered `.docx` document front and center.
-- **Spoken Summary**: *"Creating the essay on the topic 'Rain' in Microsoft Word on your Desktop now."*
-
-### B. Task 2: "crertatign an invoice for interact ai of rs 23k in excel"
-- **Input Command**: Spoken or text: *"crertatign an invoice for interact ai of rs 23k in excel"*
-- **Parsed Customer**: `"Interact AI"`
-- **Parsed Amount**: `23,000.00 INR` (handles `23k` multiplier)
-- **Deterministic Math**:
-  - Subtotal: `INR 23,000.00`
-  - Tax (18% GST): `INR 4,140.00`
-  - Grand Total: `INR 27,140.00`
-- **Generated Files on Desktop**:
-  - `C:\Users\omban\Desktop\Invoice_INV-..._INTERACT_AI.xlsx` (Styled spreadsheet with Segoe UI, blue headers, formatted currency)
-  - `C:\Users\omban\Desktop\Invoice_INV-..._INTERACT_AI.docx` (Word invoice)
-  - `C:\Users\omban\Desktop\Invoice_INV-..._INTERACT_AI.pdf` (ReportLab PDF invoice)
-- **Desktop Behavior**: Microsoft Excel (`EXCEL.EXE`) opens live on screen displaying the styled `.xlsx` workbook.
-- **Spoken Summary**: *"Invoice INV-... for INTERACT AI created on your Desktop and opened in Excel with total INR 27140.00. Verified files saved."*
-
----
-
-## 3. Test Suite Matrix (27 / 27 Passed)
+## 2. Test Suite Matrix (27 / 27 Passed in 19.80s)
 
 | Test File | Test Name | Status |
 | :--- | :--- | :---: |
