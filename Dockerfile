@@ -9,7 +9,7 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ libsndfile1 espeak-ng ffmpeg \
+    gcc g++ libsndfile1 espeak-ng ffmpeg libportaudio2 portaudio19-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

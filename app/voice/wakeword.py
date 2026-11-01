@@ -8,7 +8,10 @@ import re
 from typing import Optional, List, Callable
 import numpy as np
 import scipy.signal
-import sounddevice as sd
+try:
+    import sounddevice as sd
+except Exception:
+    sd = None
 from openwakeword.model import Model
 from app.config.settings import settings
 from app.audit.logger import audit_logger
@@ -88,6 +91,12 @@ class BackgroundVoiceListener:
         self.is_paused = False
 
     def _listen_loop(self):
+        if sd is None:
+            audit_logger.warning("Background voice listener inactive: sounddevice/PortAudio not available.")
+            while self.is_running:
+                time.sleep(1.0)
+            return
+
         from app.voice.audio_io import audio_io
         from app.voice.tts import tts
         from app.voice.stt import stt

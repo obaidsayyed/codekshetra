@@ -14,7 +14,7 @@ from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-import fitz  # PyMuPDF
+import pymupdf as fitz
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 import pandas as pd

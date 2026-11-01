@@ -9,7 +9,10 @@ from pathlib import Path
 from typing import Optional, Tuple
 import numpy as np
 import scipy.signal
-import sounddevice as sd
+try:
+    import sounddevice as sd
+except Exception as e:
+    sd = None
 from app.config.settings import settings
 from app.audit.logger import audit_logger
 
@@ -44,6 +47,8 @@ class AudioIO:
 
     def get_device_native_rate(self) -> int:
         """Determines the default input device's native hardware sample rate."""
+        if sd is None:
+            return 16000
         try:
             device_idx = sd.default.device[0]
             if device_idx is not None and device_idx >= 0:
@@ -74,6 +79,10 @@ class AudioIO:
         """
         if self.is_muted:
             audit_logger.warning("Dynamic record requested while muted. Capture aborted.")
+            return None
+
+        if sd is None:
+            audit_logger.warning("Sounddevice/PortAudio not available in environment. Audio capture skipped.")
             return None
 
         self.is_recording = True
