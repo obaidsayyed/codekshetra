@@ -248,10 +248,37 @@ class WebBridgeImpl implements SundayBridge {
 
         if (res.ok) {
           const data = await res.json();
-          const spoken =
+          let spoken =
             data.spoken_message ||
             data.spoken_prompt ||
             (data.success ? "Task completed successfully." : data.error || "Done.");
+
+          // Execute client-side actions in deployment (open URLs, open YouTube, download documents)
+          if (Array.isArray(data.results)) {
+            for (const r of data.results) {
+              const d = r?.data;
+              if (d) {
+                if (d.action === "open_url" && (d.url || d.target)) {
+                  const targetUrl = d.url || d.target;
+                  try {
+                    window.open(targetUrl, "_blank", "noopener,noreferrer");
+                  } catch {
+                    /* popup blocked */
+                  }
+                  const label = d.app || d.query || "App";
+                  spoken += `\n\n[▶️ Open ${label}](${targetUrl})`;
+                } else if (d.action === "open_document" && d.download_url) {
+                  const fullUrl = getApiUrl(d.download_url);
+                  try {
+                    window.open(fullUrl, "_blank");
+                  } catch {
+                    /* popup blocked */
+                  }
+                  spoken += `\n\n[📄 Download & View ${d.filename || "Document"}](${fullUrl})`;
+                }
+              }
+            }
+          }
 
           const botMsg: PanelMessage = {
             id: `sunday-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,

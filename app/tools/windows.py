@@ -154,6 +154,7 @@ class VisualOpenAndTypeTool(BaseTool):
             except Exception:
                 pass
 
+            cand_name = Path(output_file_path).name if output_file_path else f"{clean_title}.docx"
             return ToolResult(
                 success=True,
                 output_path=str(output_file_path) if output_file_path else None,
@@ -162,7 +163,10 @@ class VisualOpenAndTypeTool(BaseTool):
                     "process_pid": proc.pid if proc else None,
                     "typed_live": typed_live,
                     "lines_count": len(text.splitlines()),
-                    "saved_copy": str(output_file_path) if output_file_path else None
+                    "saved_copy": str(output_file_path) if output_file_path else None,
+                    "action": "open_document",
+                    "filename": cand_name,
+                    "download_url": f"/api/download?file={cand_name}"
                 },
                 evidence=f"Drafted '{title}' in Microsoft Word, saved '{clean_title}.docx' to your Desktop, and opened Word live on screen."
             )

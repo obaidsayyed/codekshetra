@@ -205,7 +205,9 @@ class ReadWhatsAppTool(BaseTool):
             data={
                 "contact": contact,
                 "message": clean_message,
-                "chat_opened": chat_opened
+                "chat_opened": chat_opened,
+                "action": "open_url",
+                "url": "https://web.whatsapp.com"
             },
             evidence=clean_message
         )

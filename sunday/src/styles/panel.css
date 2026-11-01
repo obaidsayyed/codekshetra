@@ -486,3 +486,36 @@
   text-transform: uppercase;
   color: var(--ink-2);
 }
+
+.msg-text {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.msg-action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  margin-right: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--leaf);
+  color: #fff !important;
+  font-weight: 800;
+  font-size: 12px;
+  text-decoration: none;
+  border: 1.5px solid var(--ink);
+  box-shadow: var(--shadow-sm);
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+  cursor: pointer;
+}
+
+.msg-action-pill:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow: var(--shadow);
+}
+

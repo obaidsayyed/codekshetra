@@ -183,7 +183,12 @@ export class DesktopManager {
 
   show(): void {
     if (!this.pet || this.pet.isDestroyed()) return;
-    this.pet.showInactive();
+    if (this.pet.isMinimized()) this.pet.restore();
+    this.pet.show();
+    this.pet.setAlwaysOnTop(true, "floating");
+    this.pet.moveTop();
+    this.pet.webContents.send(IPC.petCommand, { type: "wake" });
+    this.pet.webContents.send(IPC.petVisibility, true);
   }
 
   hide(): void {

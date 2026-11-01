@@ -386,7 +386,10 @@ class ReconciliationEngine:
                 "total_igst": total_igst,
                 "total_tax_liability": total_cgst + total_sgst + total_igst
             },
-            "report_path": str(final_report_path)
+            "report_path": str(final_report_path),
+            "action": "open_document",
+            "filename": final_report_path.name,
+            "download_url": f"/api/download?file={final_report_path.name}"
         }
 
     def _generate_excel_report(

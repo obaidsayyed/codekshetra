@@ -612,10 +612,14 @@ export class PetRuntime {
         this.showBubble(GREETINGS[0], false);
       },
       wake: () => {
+        this.brain.reset();
         if (engine().state === "sleeping") {
-          this.brain.reset();
           engine().request("waking");
-          if (!this.settings.quietMode) window.setTimeout(() => this.showBubble("Good morning! ☀️", false), 2600);
+          if (!this.settings.quietMode) window.setTimeout(() => this.showBubble("I'm listening! 👋", false), 2600);
+        } else {
+          engine().attend();
+          engine().request("listening");
+          if (!this.settings.quietMode) this.showBubble("I'm listening! 👋", false);
         }
       },
       getState: () => engine().state,

@@ -122,6 +122,56 @@ class SundayApiHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"events": events})
             return
 
+        if path == "/api/download":
+            params = parse_qs(parsed.query)
+            filename = params.get("file", [""])[0].strip()
+            if not filename:
+                self._send_json(400, {"error": "Missing 'file' parameter"})
+                return
+
+            safe_name = Path(filename).name
+            candidates = [
+                settings.output_dir / safe_name,
+                settings.user_desktop_dir / safe_name,
+                settings.workspace_root / safe_name,
+                settings.workspace_root / "output" / safe_name
+            ]
+            target_file = None
+            for cand in candidates:
+                if cand.is_file():
+                    target_file = cand
+                    break
+
+            if not target_file:
+                self._send_json(404, {"error": f"File '{safe_name}' not found"})
+                return
+
+            import mimetypes
+            ctype, _ = mimetypes.guess_type(str(target_file))
+            if not ctype:
+                if target_file.suffix == ".docx":
+                    ctype = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                elif target_file.suffix == ".xlsx":
+                    ctype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                elif target_file.suffix == ".pdf":
+                    ctype = "application/pdf"
+                else:
+                    ctype = "application/octet-stream"
+
+            try:
+                content = target_file.read_bytes()
+                self.send_response(200)
+                self._send_cors()
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(content)))
+                self.send_header("Content-Disposition", f'attachment; filename="{safe_name}"')
+                self.end_headers()
+                self.wfile.write(content)
+                return
+            except Exception as e:
+                self._send_json(500, {"error": str(e)})
+                return
+
         # Unified single-deployment PWA static file & SPA routing (/talk, /studio, /index.html)
         dist_dir = settings.base_dir / "sunday" / "dist"
         if dist_dir.exists() and not path.startswith("/api"):

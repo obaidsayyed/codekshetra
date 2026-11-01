@@ -267,7 +267,11 @@ class CreateInvoiceTool(BaseTool):
             "xlsx_path": str(desktop_xlsx),
             "docx_sha256": docx_hash,
             "pdf_sha256": pdf_hash,
-            "pages": pdf_pages
+            "pages": pdf_pages,
+            "action": "open_document",
+            "filename": desktop_xlsx.name,
+            "download_url": f"/api/download?file={desktop_xlsx.name}",
+            "pdf_download_url": f"/api/download?file={pdf_path.name}"
         }
 
         audit_logger.info("Generated and verified invoice %s (Total: %s %s)", inv_number, currency, grand_total)

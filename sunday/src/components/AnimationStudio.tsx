@@ -446,7 +446,7 @@ export function AnimationStudio() {
 
         <main className="preview-col">
           <div
-            className={`viewport bg-${background}`}
+            className={`viewport bg-${background} ${voiceState.isAwake ? "is-awake" : "is-standby"}`}
             ref={viewportRef}
             onClick={() => {
               if (!voiceState.isAwake) {
@@ -460,6 +460,12 @@ export function AnimationStudio() {
             onWheel={onWheel}
           >
             <canvas ref={canvasRef} className="viewport-canvas" />
+            {!voiceState.isAwake && (
+              <div className="standby-wake-prompt">
+                <span>💤 Sunday is resting</span>
+                <b>Say &ldquo;Hey Sunday&rdquo; or tap anywhere to wake up!</b>
+              </div>
+            )}
             {previewSpeech && <SpeechBubble ref={bubbleRef} text={previewSpeech} floating className="viewport-bubble" />}
             <div className="viewport-hud">
               <span>{STATE_LABELS[selected]}</span>

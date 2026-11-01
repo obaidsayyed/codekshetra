@@ -216,6 +216,8 @@ export function initPythonBackendBridge(hub: IntegrationHub, desktop?: DesktopMa
             if (evt.visible) {
               console.log("[bridge] Showing Sunday character on wake word trigger.");
               desktop?.show();
+              hub.controller.setState("listening");
+              hub.controller.setSpeech("I'm listening!");
             } else {
               console.log("[bridge] Hiding Sunday character on dismissive / standby.");
               desktop?.hide();

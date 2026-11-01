@@ -19,6 +19,36 @@ const QUICK_STARTS = ["What can you do?", "Show me today's tasks", "Summarise my
 
 const time = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+function renderMessageText(text: string) {
+  const parts: (string | React.ReactNode)[] = [];
+  const regex = /\[(.*?)\]\((.*?)\)/g;
+  let lastIndex = 0;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    const label = match[1];
+    const url = match[2];
+    parts.push(
+      <a
+        key={match.index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="msg-action-pill"
+      >
+        {label} ↗
+      </a>
+    );
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  return parts.length > 0 ? parts : text;
+}
+
 export function InteractionPanel() {
   const bridge = getBridge();
   const [settings] = useSettings();
@@ -194,7 +224,7 @@ export function InteractionPanel() {
                     </div>
                   )}
                   <div className="msg-body">
-                    <p>{m.text}</p>
+                    <div className="msg-text">{renderMessageText(m.text)}</div>
                     {m.role !== "system" && (
                       <span className="msg-meta">
                         {time(m.timestamp)}

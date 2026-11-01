@@ -290,6 +290,72 @@
 }
 
 .viewport-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transition: transform 450ms cubic-bezier(0.34, 1.56, 0.64, 1), filter 300ms ease;
+}
+
+.viewport.is-standby .viewport-canvas {
+  transform: translateY(28px) scale(0.92);
+  filter: brightness(0.85);
+}
+
+.viewport.is-awake .viewport-canvas {
+  transform: translateY(0) scale(1);
+  filter: brightness(1.02);
+  animation: popUpBounce 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes popUpBounce {
+  0% { transform: translateY(40px) scale(0.8); }
+  60% { transform: translateY(-8px) scale(1.05); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+.standby-wake-prompt {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  border-radius: 24px;
+  padding: 8px 18px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
+  animation: floatBounce 2.5s infinite ease-in-out;
+  z-index: 10;
+}
+
+.standby-wake-prompt span {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.standby-wake-prompt b {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.is-night .standby-wake-prompt b {
+  color: #f6e9d8;
+}
+
+@keyframes floatBounce {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, -6px); }
+}
+
+.viewport-canvas {
   position: absolute;
   inset: 0;
   width: 100%;

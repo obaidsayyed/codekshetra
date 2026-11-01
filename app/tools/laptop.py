@@ -160,10 +160,13 @@ class LaunchAppTool(BaseTool):
             play_url, song_title = resolve_youtube_play_url(app_name)
             try:
                 audit_logger.info("Playing YouTube video in browser: %s", play_url)
-                webbrowser.open(play_url)
+                try:
+                    webbrowser.open(play_url)
+                except Exception:
+                    pass
                 return ToolResult(
                     success=True,
-                    data={"target": play_url, "type": "youtube_play", "query": song_title},
+                    data={"target": play_url, "url": play_url, "action": "open_url", "type": "youtube_play", "query": song_title},
                     evidence=f"Playing '{song_title}' on YouTube in your browser."
                 )
             except Exception as e:
@@ -175,10 +178,13 @@ class LaunchAppTool(BaseTool):
             q_extracted = urllib.parse.unquote_plus(m.group(1)) if m else ""
             play_url, song_title = resolve_youtube_play_url(q_extracted or "video")
             try:
-                webbrowser.open(play_url)
+                try:
+                    webbrowser.open(play_url)
+                except Exception:
+                    pass
                 return ToolResult(
                     success=True,
-                    data={"target": play_url, "type": "youtube_play", "query": song_title},
+                    data={"target": play_url, "url": play_url, "action": "open_url", "type": "youtube_play", "query": song_title},
                     evidence=f"Playing '{song_title}' on YouTube in your browser."
                 )
             except Exception as e:
@@ -191,10 +197,13 @@ class LaunchAppTool(BaseTool):
                 target_url = "https://" + target_url
             try:
                 audit_logger.info("Opening web service in browser: %s", target_url)
-                webbrowser.open(target_url)
+                try:
+                    webbrowser.open(target_url)
+                except Exception:
+                    pass
                 return ToolResult(
                     success=True,
-                    data={"target": target_url, "type": "web"},
+                    data={"target": target_url, "url": target_url, "action": "open_url", "type": "web"},
                     evidence=f"Opened {raw_name.capitalize()} in your web browser."
                 )
             except Exception as e:
@@ -203,7 +212,26 @@ class LaunchAppTool(BaseTool):
         # 4. Check alias for desktop applications
         target_name = APP_ALIASES.get(raw_name, raw_name)
 
-        # 3. Look up registered application path in Windows Registry
+        # In cloud / headless container deployments (Linux / Render), provide direct web / client action fallback
+        if os.name != "nt":
+            web_fallbacks = {
+                "chrome": "https://www.google.com",
+                "msedge": "https://www.bing.com",
+                "whatsapp": "https://web.whatsapp.com",
+                "spotify": "https://open.spotify.com",
+                "calc": "https://www.google.com/search?q=calculator",
+                "explorer": "/api/workspace",
+                "gmail": "https://mail.google.com",
+            }
+            if target_name in web_fallbacks or raw_name in web_fallbacks:
+                fallback_url = web_fallbacks.get(target_name) or web_fallbacks.get(raw_name)
+                return ToolResult(
+                    success=True,
+                    data={"target": fallback_url, "url": fallback_url, "action": "open_url", "app_name": app_name},
+                    evidence=f"Opened {app_name.capitalize()} on your screen."
+                )
+
+        # 5. Look up registered application path in Windows Registry
         reg_apps = get_registered_windows_apps()
         exe_path = reg_apps.get(target_name) or reg_apps.get(f"{target_name}.exe")
 
@@ -213,20 +241,20 @@ class LaunchAppTool(BaseTool):
                 subprocess.Popen([exe_path])
                 return ToolResult(
                     success=True,
-                    data={"app_name": app_name, "executable": exe_path},
+                    data={"app_name": app_name, "executable": exe_path, "action": "launch_app"},
                     evidence=f"Opened {app_name.capitalize()} on your laptop."
                 )
             except Exception as e:
                 audit_logger.warning("Direct launch of %s failed: %s. Trying os.startfile...", exe_path, e)
 
-        # 4. Try standard Windows os.startfile / shell start
+        # 6. Try standard Windows os.startfile / shell start
         try:
             audit_logger.info("Launching application via Windows Shell: %s", target_name)
             # cmd /c start "" <target> resolves App Paths & system binaries (notepad, calc, write, explorer)
             subprocess.Popen(f'cmd.exe /c start "" "{target_name}"', shell=True)
             return ToolResult(
                 success=True,
-                data={"app_name": app_name, "target": target_name},
+                data={"app_name": app_name, "target": target_name, "action": "launch_app"},
                 evidence=f"Opened {app_name.capitalize()} on your laptop."
             )
         except Exception as e:
