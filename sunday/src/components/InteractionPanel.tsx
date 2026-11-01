@@ -6,8 +6,6 @@ import type { PanelMessage } from "../shared/ipc";
 import { isNightActive } from "../shared/settings";
 import { SkinPortrait } from "./CustomizationPanel";
 import { IconClose, IconMic, IconMicOff, IconMinus, IconPlug, IconSend } from "./Icons";
-import { PwaInstallHeaderButton } from "./PwaInstallBanner";
-import { webVoice, type WebVoiceListenerState } from "../services/webVoice";
 
 /**
  * The floating chat panel — presentation layer only. It shows messages pushed
@@ -56,16 +54,11 @@ export function InteractionPanel() {
   const [draft, setDraft] = useState("");
   const [connected, setConnected] = useState(false);
   const [voiceMuted, setVoiceMuted] = useState(false);
-  const [voiceState, setVoiceState] = useState<WebVoiceListenerState>(webVoice.getSnapshot());
   const [noteOpen, setNoteOpen] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const night = isNightActive(settings.nightMode);
-
-  useEffect(() => {
-    return webVoice.subscribe(setVoiceState);
-  }, []);
 
   useEffect(() => {
     document.documentElement.classList.add("view-panel");
@@ -158,24 +151,6 @@ export function InteractionPanel() {
             </span>
           </div>
           <div className="chat-controls no-drag">
-            <PwaInstallHeaderButton />
-            <button
-              type="button"
-              className={`voice-wake-pill ${voiceState.isAwake ? "is-awake" : "is-standby"}`}
-              onClick={() => (voiceState.isAwake ? webVoice.goToStandby() : webVoice.wakeUp())}
-              title={voiceState.isAwake ? "Put Sunday to Standby Sleep" : "Wake Sunday & Start Listening"}
-            >
-              <span className="wake-indicator-dot" />
-              <span>{voiceState.isAwake ? "Listening" : 'Say "Sunday"'}</span>
-            </button>
-            <button
-              type="button"
-              className="nav-studio-btn"
-              onClick={() => { window.location.hash = "studio"; }}
-              title="Open Animation Studio"
-            >
-              🎬 Studio
-            </button>
             <button
               type="button"
               className={`mute-btn ${voiceMuted ? "is-muted" : ""}`}

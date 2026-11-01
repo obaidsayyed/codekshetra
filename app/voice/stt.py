@@ -34,8 +34,8 @@ class SpeechToText:
 
     def _get_model(self) -> WhisperModel:
         if self._model is None:
-            # Fallback cascade: medium.en -> small.en -> base.en -> tiny
-            candidates = [self.model_name, "medium.en", "small.en", "base.en", "tiny"]
+            # Fast offline model cascade: base.en -> small.en -> tiny
+            candidates = [self.model_name, "base.en", "small.en", "tiny"]
             # Deduplicate while preserving order
             seen = set()
             ordered_candidates = [c for c in candidates if not (c in seen or seen.add(c))]
@@ -85,12 +85,12 @@ class SpeechToText:
         segments, info = model.transcribe(
             str(target),
             language=lang,
-            beam_size=5,
-            best_of=5,
+            beam_size=1,
+            best_of=1,
             temperature=0,
             initial_prompt=prompt,
             vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500, threshold=0.5, speech_pad_ms=250)
+            vad_parameters=dict(min_silence_duration_ms=400, threshold=0.5, speech_pad_ms=200)
         )
 
         text_pieces = []

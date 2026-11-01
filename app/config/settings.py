@@ -62,8 +62,8 @@ class Settings(BaseModel):
     ollama_model: str = "qwen2.5:3b"
     ollama_num_ctx: int = 4096
     
-    # STT & TTS paths (highest accuracy medium.en model for zero-error English voice recognition)
-    whisper_model_name: str = "medium.en"
+    # STT & TTS paths (ultra-fast base.en model for near-zero latency vocal recognition)
+    whisper_model_name: str = "base.en"
     stt_model_name: str = "qwen3-asr-1.7b"
 
     @property
