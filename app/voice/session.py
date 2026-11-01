@@ -285,9 +285,21 @@ class VoiceSession:
 
             else:
                 self.state = SessionState.SPEAKING
-                err = result.get("error", "An error occurred during execution.")
-                self.tts.speak(f"Notice: {err}")
+                spoken_msg = result.get("spoken_message")
+                if not spoken_msg:
+                    raw_err = result.get("error", "An error occurred during execution.")
+                    from app.brain.planner import format_error_for_speech
+                    spoken_msg = format_error_for_speech(raw_err)
+                self.tts.speak(spoken_msg)
                 return result
+
+        except Exception as ex:
+            self.state = SessionState.SPEAKING
+            audit_logger.error("Exception in process_user_utterance: %s", ex, exc_info=True)
+            from app.brain.planner import format_error_for_speech
+            clean_spoken_err = format_error_for_speech(str(ex))
+            self.tts.speak(clean_spoken_err)
+            return {"success": False, "status": "failed", "error": str(ex), "spoken_message": clean_spoken_err}
 
         finally:
             import time

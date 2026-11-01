@@ -78,8 +78,8 @@ class WorkflowEngine:
                 }
             now_ts = time.time()
             clean_obj = objective.strip().lower()
-            if clean_obj and clean_obj == self._last_objective and (now_ts - self._last_objective_ts) < 3.0:
-                audit_logger.info("Ignoring duplicate command received within 3.0s: '%s'", clean_obj)
+            if clean_obj and clean_obj == self._last_objective and (now_ts - self._last_objective_ts) < 0.8:
+                audit_logger.info("Ignoring duplicate command received within 0.8s: '%s'", clean_obj)
                 return {
                     "success": False,
                     "status": "duplicate",
@@ -148,6 +148,16 @@ class WorkflowEngine:
 
             # 4. Execute steps sequentially and silently on desktop
             return self.execute_task(task_id)
+        except Exception as ex:
+            audit_logger.error("Exception in handle_objective: %s", ex, exc_info=True)
+            from app.brain.planner import format_error_for_speech
+            clean_err = format_error_for_speech(str(ex))
+            return {
+                "success": False,
+                "status": "failed",
+                "error": str(ex),
+                "spoken_message": clean_err
+            }
         finally:
             with self._busy_lock:
                 self.is_busy = False
@@ -235,10 +245,14 @@ class WorkflowEngine:
                 task.state = TaskState.FAILED.value
                 self.task_repo.save_step(step)
                 self.task_repo.save_task(task)
+                raw_err = exec_out.get("error", "Step execution failed.")
+                from app.brain.planner import format_error_for_speech
+                clean_spoken_err = format_error_for_speech(raw_err)
                 return {
                     "success": False,
                     "status": "failed",
-                    "error": exec_out.get("error", "Step execution failed."),
+                    "error": raw_err,
+                    "spoken_message": clean_spoken_err,
                     "task_id": task_id
                 }
 

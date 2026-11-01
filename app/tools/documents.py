@@ -385,39 +385,39 @@ class CreateSpreadsheetTool(BaseTool):
         reopened_df = pd.read_excel(str(xlsx_path))
         verified_rows = len(reopened_df)
 
-        # Copy directly to user's Windows Desktop so user sees it right away
-        desktop_xlsx = settings.user_desktop_dir / f"{base_name}.xlsx"
-        try:
-            shutil.copy2(str(xlsx_path), str(desktop_xlsx))
-            audit_logger.info("Saved spreadsheet directly to Desktop: %s", desktop_xlsx)
-        except Exception as e:
-            audit_logger.warning("Could not copy spreadsheet to Desktop: %s", e)
-            desktop_xlsx = xlsx_path
+        # Copy directly to user's Windows Desktop with collision avoidance
+        target_xlsx = xlsx_path
+        candidate_desktop_paths = [
+            settings.user_desktop_dir / f"{base_name}.xlsx",
+            settings.user_desktop_dir / f"{base_name}_revised.xlsx",
+            settings.user_desktop_dir / f"{base_name}_{int(datetime.now().timestamp())}.xlsx"
+        ]
+        for cand in candidate_desktop_paths:
+            try:
+                shutil.copy2(str(xlsx_path), str(cand))
+                target_xlsx = cand
+                audit_logger.info("Saved spreadsheet directly to Desktop: %s", cand)
+                break
+            except Exception as e:
+                audit_logger.warning("Desktop path %s locked or inaccessible (%s). Trying alternate...", cand.name, e)
 
-        # Visually open Excel live on the screen so the user observes the work
-        from app.tools.laptop import get_registered_windows_apps
-        reg_apps = get_registered_windows_apps()
-        excel_bin = reg_apps.get("excel.exe") or reg_apps.get("excel")
+        # Visually open Excel live on screen via Windows shell
         try:
-            if excel_bin and Path(excel_bin).exists():
-                audit_logger.info("Visually opening Excel on screen: %s", desktop_xlsx)
-                subprocess.Popen([excel_bin, str(desktop_xlsx)])
-            else:
-                audit_logger.info("Opening spreadsheet via Windows shell: %s", desktop_xlsx)
-                subprocess.Popen(f'cmd.exe /c start "" "{desktop_xlsx}"', shell=True)
+            audit_logger.info("Visually opening spreadsheet in Excel via Windows shell: %s", target_xlsx)
+            subprocess.Popen(f'cmd.exe /c start "" "{target_xlsx}"', shell=True)
         except Exception as e:
             audit_logger.warning("Could not launch Excel viewer: %s", e)
 
         return ToolResult(
             success=True,
-            output_path=str(desktop_xlsx),
+            output_path=str(target_xlsx),
             data={
-                "xlsx_path": str(desktop_xlsx),
+                "xlsx_path": str(target_xlsx),
                 "csv_path": str(csv_path),
                 "rows_count": verified_rows,
                 "columns": headers
             },
-            evidence=f"Spreadsheet {desktop_xlsx.name} created on your Desktop and opened in Excel with {verified_rows} rows."
+            evidence=f"Spreadsheet {target_xlsx.name} created on your Desktop and opened in Excel with {verified_rows} rows."
         )
 
 

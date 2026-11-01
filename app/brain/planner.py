@@ -79,6 +79,54 @@ def extract_requested_word_count(text: str, current_count: int = 250) -> Optiona
     return None
 
 
+def format_error_for_speech(raw_error: str) -> str:
+    """
+    Simplifies raw exception/system error text into a concise, natural, single-sentence spoken explanation.
+    Uses Ollama LLM if healthy, or clean heuristic parsing so TTS never reads symbols or file paths.
+    """
+    if not raw_error:
+        return "I encountered an issue while processing your request."
+
+    # Try Ollama for natural conversational explanation
+    try:
+        from app.brain.ollama_client import ollama_client
+        if ollama_client.check_health():
+            prompt = (
+                f"You are SUNDAY voice assistant. Convert this technical error into a single friendly, concise spoken sentence for the user. "
+                f"Do not read file paths, brackets, or code symbols. Explain what went wrong in plain English:\n\n"
+                f"Error: {raw_error}"
+            )
+            resp = ollama_client.chat([{"role": "user", "content": prompt}], timeout=4.0)
+            clean_resp = resp.strip().replace('"', '').replace('\n', ' ')
+            if clean_resp and len(clean_resp) < 140 and "{" not in clean_resp:
+                return clean_resp
+    except Exception:
+        pass
+
+    # Heuristic fallback (fast & 100% offline)
+    err_lower = raw_error.lower()
+    if "permission denied" in err_lower or "errno 13" in err_lower or "winerror 5" in err_lower:
+        if "word" in err_lower or ".docx" in err_lower:
+            return "I could not save the Word document because it is currently open in Microsoft Word. Please close Word and try again."
+        elif "excel" in err_lower or ".xlsx" in err_lower:
+            return "I could not update the spreadsheet because it is open in Excel. Please close Excel and try again."
+        else:
+            return "I could not update the desktop file because it is currently open in another program."
+    elif "file not found" in err_lower or "no such file" in err_lower or "errno 2" in err_lower:
+        return "I could not locate the requested document on your laptop."
+    elif "connection refused" in err_lower or "socket" in err_lower or "winerror 10013" in err_lower:
+        return "The local service is not reachable right now."
+    elif "timeout" in err_lower:
+        return "The operation timed out. Please try your request again."
+
+    # Clean generic fallback: remove code symbols, brackets, and paths
+    clean = re.sub(r'\[.*?\]', '', raw_error)
+    clean = re.sub(r'[A-Za-z]:\\[\w\\\.\-]+', 'the file', clean)
+    clean = re.sub(r'[\'\"\{\}\(\)_]', ' ', clean)
+    clean = ' '.join(clean.split())
+    return f"I encountered a problem: {clean[:80]}."
+
+
 def generate_comprehensive_essay(topic: str, min_words: int = 250) -> str:
     """
     Generates an articulate, beautifully structured essay with sections and guaranteed word count (>= min_words).
@@ -371,7 +419,7 @@ class Planner:
                         risk_level="R1"
                     )
                 ],
-                spoken_summary="Starting the autonomous month-end financial close: ingesting WhatsApp and Email invoices, reconciling against bank statements, placing an outbound recovery call in Hindi to overdue customers, and filing GSTR-1 on the portal."
+                spoken_summary="Starting month-end close: opening the synthetic GST portal, the reconciliation spreadsheet in Excel, the executive summary in Word, and Gmail on Chrome for Interact AI."
             )
 
         # 2. Build messages with multi-turn conversation history
@@ -648,7 +696,7 @@ class Planner:
                         risk_level="R1"
                     )
                 ],
-                spoken_summary="Starting the autonomous month-end financial close: ingesting WhatsApp and Email invoices, reconciling against bank statements, placing an outbound recovery call in Hindi to overdue customers, and filing GSTR-1 on the portal."
+                spoken_summary="Starting month-end close: opening the synthetic GST portal, the reconciliation spreadsheet in Excel, the executive summary in Word, and Gmail on Chrome for Interact AI."
             )
 
         if not is_doc_cmd and any(w in obj_clean for w in ["meeting", "appointment", "schedule a meeting", "have a meeting", "meeting today", "remind me that i have a meeting", "remember that i have a meeting", "remember i have a meeting", "remind me about my meeting"]):

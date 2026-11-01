@@ -75,7 +75,8 @@ class GSTPortalBrowserTool(BaseTool):
         self,
         invoices: Optional[List[Dict[str, Any]]] = None,
         tax_period: str = "October 2026",
-        auto_submit: bool = False
+        auto_submit: bool = False,
+        open_browser: bool = True
     ) -> ToolResult:
         # 1. Ensure local GST Portal server is running
         gst_portal_server.start()
@@ -85,13 +86,14 @@ class GSTPortalBrowserTool(BaseTool):
 
         audit_logger.info("Operating GST Portal at %s for tax period %s...", base_url, tax_period)
 
-        # 2. Launch browser visually so owner sees the portal on screen
-        try:
-            audit_logger.info("Visually opening GST Portal in browser...")
-            subprocess.Popen(f'cmd.exe /c start "" "{base_url}/gst/login"', shell=True)
-            time.sleep(0.5)
-        except Exception as e:
-            audit_logger.warning("Could not launch visual browser: %s", e)
+        # 2. Launch browser visually so owner sees the portal on screen (only if open_browser is True)
+        if open_browser:
+            try:
+                audit_logger.info("Visually opening GST Portal in browser...")
+                subprocess.Popen(f'cmd.exe /c start "" "{base_url}/gst/login"', shell=True)
+                time.sleep(0.5)
+            except Exception as e:
+                audit_logger.warning("Could not launch visual browser: %s", e)
 
         # 3. Step 1: Login to GST Portal
         audit_logger.info("Step 1: Authenticating on GST Portal with taxpayer credentials...")

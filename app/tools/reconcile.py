@@ -8,6 +8,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
 import json
+import time
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from pydantic import BaseModel, Field
@@ -247,7 +248,8 @@ class ReconciliationEngine:
         self,
         statement_path: Optional[Path] = None,
         inbox_dir: Optional[Path] = None,
-        output_filename: str = "Month_End_Reconciliation.xlsx"
+        output_filename: str = "Month_End_Reconciliation.xlsx",
+        open_visual: bool = True
     ) -> Dict[str, Any]:
         """
         Executes end-to-end reconciliation:
@@ -339,13 +341,31 @@ class ReconciliationEngine:
 
         self._generate_excel_report(workspace_report, reconciled_items, total_invoiced, total_cleared, total_overdue)
         
+        # Attempt saving to Desktop with multi-level conflict avoidance
         final_report_path = workspace_report
-        try:
-            self._generate_excel_report(desktop_report, reconciled_items, total_invoiced, total_cleared, total_overdue)
-            final_report_path = desktop_report
-            audit_logger.info("Saved reconciliation report to Desktop: %s", desktop_report)
-        except Exception as e:
-            audit_logger.warning("Could not save report to Desktop (%s). Primary copy saved to: %s", e, workspace_report)
+        desktop_candidates = [
+            desktop_report,
+            settings.user_desktop_dir / "Month_End_Reconciliation_October_2026.xlsx",
+            settings.user_desktop_dir / f"Month_End_Reconciliation_{int(time.time())}.xlsx"
+        ]
+        for d_cand in desktop_candidates:
+            try:
+                self._generate_excel_report(d_cand, reconciled_items, total_invoiced, total_cleared, total_overdue)
+                final_report_path = d_cand
+                audit_logger.info("Saved reconciliation report to Desktop: %s", d_cand)
+                break
+            except Exception as e:
+                audit_logger.warning("Desktop path %s locked or inaccessible (%s). Trying alternate filename...", d_cand.name, e)
+
+        # Visually launch Excel on the desktop so the user observes the reconciliation sheet live
+        if open_visual:
+            try:
+                import subprocess
+                audit_logger.info("Visually opening reconciliation spreadsheet in Excel on screen: %s", final_report_path)
+                subprocess.Popen(f'cmd.exe /c start "" "{final_report_path}"', shell=True)
+                time.sleep(1.0)
+            except Exception as e:
+                audit_logger.warning("Could not launch Excel window: %s", e)
 
         audit_logger.info("Reconciliation complete. Total Invoiced: Rs.%.2f, Cleared: Rs.%.2f, Overdue: Rs.%.2f",
                           total_invoiced, total_cleared, total_overdue)
