@@ -20,11 +20,11 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, errorMessage: error?.message || "Unexpected issue" };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("[SUNDAY PWA] Caught component error:", error, errorInfo);
   }
 
-  render() {
+  override render() {
     if (this.state.hasError) {
       return (
         <div

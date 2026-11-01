@@ -15,6 +15,8 @@ import { CustomizationPanel, SkinPortrait } from "./CustomizationPanel";
 import { ControllerPlayground } from "./ControllerPlayground";
 import { IconLoop, IconPause, IconPlay, IconRestart, IconStepBack, IconStepFwd, IconStop, IconMoon, IconSound, IconMute } from "./Icons";
 import { SpeechBubble } from "./SpeechBubble";
+import { webVoice, type WebVoiceListenerState } from "../services/webVoice";
+import { PwaInstallHeaderButton } from "./PwaInstallBanner";
 
 /**
  * SUNDAY ANIMATION STUDIO — preview every state on the real 3D character,
@@ -193,6 +195,57 @@ export function AnimationStudio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [voiceState, setVoiceState] = useState<WebVoiceListenerState>(webVoice.getSnapshot());
+
+  // Connect to web voice wake word listener
+  useEffect(() => {
+    return webVoice.subscribe((s) => {
+      setVoiceState(s);
+      if (s.state === "waking" || s.state === "listening") {
+        select("listening");
+        setPreviewSpeech(s.transcript || "I'm listening!");
+      } else if (s.state === "processing") {
+        select("working");
+        setPreviewSpeech("Working on it...");
+      } else if (s.state === "standby") {
+        select("sleeping");
+        setPreviewSpeech("💤 Standby · Say 'Sunday' or tap Wake");
+      }
+    });
+  }, [select]);
+
+  // Connect to bridge pet commands
+  useEffect(() => {
+    const bridge = getBridge();
+    const unsubCmd = bridge.pet.onCommand((cmd) => {
+      if (cmd.type === "setState") {
+        select(cmd.state);
+      } else if (cmd.type === "setSpeech") {
+        setPreviewSpeech(cmd.text);
+      } else if (cmd.type === "clearSpeech") {
+        setPreviewSpeech(null);
+      } else if (cmd.type === "wake") {
+        webVoice.wakeUp();
+      }
+    });
+    return () => unsubCmd();
+  }, [select]);
+
+  // Auto-start listener on mount if browser supports speech recognition
+  useEffect(() => {
+    if (webVoice.getSnapshot().isSupported && !webVoice.getSnapshot().isListening) {
+      void webVoice.start();
+    }
+  }, []);
+
+  const handleVoiceWakeClick = () => {
+    if (voiceState.isAwake) {
+      webVoice.goToStandby();
+    } else {
+      webVoice.wakeUp();
+    }
+  };
+
   const play = () => {
     const e = engine();
     if (!e) return;
@@ -322,6 +375,32 @@ export function AnimationStudio() {
           <span className="brand-sub">developer tools</span>
         </div>
         <div className="header-status">
+          <PwaInstallHeaderButton />
+          <button
+            type="button"
+            className={`voice-wake-pill ${voiceState.isAwake ? "is-awake" : "is-standby"} ${voiceState.state}`}
+            onClick={handleVoiceWakeClick}
+            title={voiceState.isAwake ? "Put Sunday to Standby Sleep" : "Wake Sunday & Start Listening"}
+          >
+            <span className="wake-indicator-dot" />
+            <span className="wake-label">
+              {voiceState.state === "processing"
+                ? "Working..."
+                : voiceState.state === "speaking"
+                ? "Speaking..."
+                : voiceState.isAwake
+                ? "Listening..."
+                : 'Wake · Say "Sunday"'}
+            </span>
+          </button>
+          <button
+            type="button"
+            className="nav-talk-btn"
+            onClick={() => { window.location.hash = "panel"; }}
+            title="Open Sunday Conversation & Task Panel"
+          >
+            💬 Talk
+          </button>
           <span className={`state-chip ${tl?.blending ? "is-blending" : ""}`}>
             <i aria-hidden />
             {STATE_LABELS[selected]}
@@ -369,6 +448,11 @@ export function AnimationStudio() {
           <div
             className={`viewport bg-${background}`}
             ref={viewportRef}
+            onClick={() => {
+              if (!voiceState.isAwake) {
+                webVoice.wakeUp();
+              }
+            }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
