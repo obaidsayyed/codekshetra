@@ -1,0 +1,78 @@
+{
+  "name": "sunday-desktop-companion",
+  "productName": "SUNDAY",
+  "version": "1.0.0",
+  "description": "SUNDAY — a living voxel desktop companion for Windows (Electron + React + Three.js).",
+  "private": true,
+  "main": "dist-electron/main.cjs",
+  "type": "module",
+  "author": "SUNDAY",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "studio:web": "vite --open /#studio",
+    "build:renderer": "vite build",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build": "npm run typecheck && npm run build:renderer && npm run build:electron",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "npm run build && playwright test",
+    "dist:win": "npm run build && electron-builder --win nsis portable",
+    "dist:dir": "npm run build && electron-builder --win dir"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "three": ">=0.178.0 <0.200.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@types/three": ">=0.178.0 <0.200.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^45.2.1",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.0",
+    "vitest": "^3.2.4"
+  },
+  "build": {
+    "appId": "app.sunday.companion",
+    "productName": "SUNDAY",
+    "copyright": "SUNDAY desktop companion",
+    "directories": {
+      "output": "release",
+      "buildResources": "public/icons"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "dist-electron/main.cjs"
+    },
+    "win": {
+      "icon": "public/icons/sunday.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "SUNDAY"
+    },
+    "portable": {
+      "artifactName": "SUNDAY-${version}-portable.exe"
+    }
+  }
+}

@@ -5,6 +5,7 @@ Startup composition root, CLI arguments, background scheduler, recovery, and voi
 import sys
 import argparse
 import time
+import subprocess
 from app.config.settings import settings
 from app.audit.logger import audit_logger
 from app.memory.db import db_manager
@@ -15,6 +16,7 @@ from app.brain.ollama_client import ollama_client
 from app.voice.session import voice_session
 from app.tray.app import tray_app
 from app.ui.gui import run_gui
+from app.server.api_server import start_server_in_background
 
 
 def perform_check() -> int:
@@ -108,9 +110,54 @@ def run_cli_loop():
         scheduler.stop()
 
 
+def run_companion() -> int:
+    """Launches the Electron 3D voxel desktop companion frontend."""
+    # 1. Start recovery and background services
+    recovery_manager.recover()
+    ollama_client.ensure_running()
+    scheduler.start()
+
+    # 2. Start local bridge REST & Event server on 127.0.0.1:8765
+    start_server_in_background(host="127.0.0.1", port=8765)
+
+    # 3. Try to start continuous background wake listener
+    try:
+        from app.voice.wakeword import background_listener
+        background_listener.start()
+    except Exception as e:
+        audit_logger.warning("Background voice listener not active: %s", e)
+
+    # 4. Resolve Electron executable
+    sunday_dir = settings.base_dir / "sunday"
+    electron_bin = sunday_dir / "node_modules" / ".bin" / "electron.cmd"
+
+    cmd = [str(electron_bin), "."] if electron_bin.exists() else ["npx.cmd", "electron", "."]
+
+    audit_logger.info("Starting SUNDAY 3D Desktop Companion: %s (in %s)", cmd, sunday_dir)
+    print("\n=======================================================")
+    print(" SUNDAY 3D Desktop Companion is waking up...")
+    print(" Look for Sunday on your desktop and chat panel!")
+    print(" Backend API Server listening on http://127.0.0.1:8765")
+    print(" Press Ctrl+C in this console to exit.")
+    print("=======================================================\n")
+
+    try:
+        proc = subprocess.Popen(cmd, cwd=str(sunday_dir))
+        return proc.wait()
+    except KeyboardInterrupt:
+        return 0
+    except Exception as e:
+        audit_logger.error("Error launching Electron companion: %s", e)
+        print("Falling back to legacy desktop GUI...")
+        return run_gui()
+    finally:
+        scheduler.stop()
+
+
 def main():
     parser = argparse.ArgumentParser(description="SUNDAY - Local-First Offline AI Employee")
-    parser.add_argument("--gui", action="store_true", help="Launch the primary Desktop GUI application")
+    parser.add_argument("--gui", action="store_true", help="Launch the primary Desktop 3D Companion application")
+    parser.add_argument("--legacy-gui", action="store_true", help="Launch the legacy Tkinter GUI instead of 3D companion")
     parser.add_argument("--check", action="store_true", help="Run system integrity checks and exit")
     parser.add_argument("--cli", action="store_true", help="Run interactive CLI console")
     parser.add_argument("--tray", action="store_true", help="Launch system tray interface")
@@ -145,8 +192,12 @@ def main():
         scheduler.stop()
         sys.exit(0)
 
-    # Default: Launch visual desktop GUI application
-    run_gui()
+    if args.legacy_gui:
+        run_gui()
+        sys.exit(0)
+
+    # Default: Launch 3D voxel desktop companion character with full backend connection
+    sys.exit(run_companion())
 
 
 if __name__ == "__main__":

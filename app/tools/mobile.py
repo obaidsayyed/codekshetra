@@ -296,3 +296,4 @@ class MobileAppLauncher:
 
 
 mobile_launcher = MobileAppLauncher()
+
