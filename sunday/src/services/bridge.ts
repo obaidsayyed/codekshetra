@@ -1,6 +1,5 @@
 import type { SundayBridge, PanelMessage, PetCommand, AppInfo, PetEnvironment, Anchor, DragUpdate } from "../shared/ipc";
 import { DEFAULT_SETTINGS, patchSettings, type PetSettings } from "../shared/settings";
-import { say } from "./voice";
 
 declare global {
   interface Window {
@@ -296,7 +295,6 @@ class WebBridgeImpl implements SundayBridge {
           const state = data.success ? "celebrating" : data.status === "waiting_for_owner" ? "idle" : "error";
           this.sendPetCommand({ type: "setState", state });
           this.sendPetCommand({ type: "setSpeech", text: spoken });
-          say(spoken);
 
           return { delivered: true };
         }
@@ -363,7 +361,6 @@ class WebBridgeImpl implements SundayBridge {
               if (evt.state) this.sendPetCommand({ type: "setState", state: evt.state });
               if (evt.speech) {
                 this.sendPetCommand({ type: "setSpeech", text: evt.speech });
-                say(evt.speech);
               }
             } else if (evt.type === "chat_message") {
               const msg: PanelMessage = {

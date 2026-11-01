@@ -36,6 +36,9 @@ let cachedVoices: SpeechSynthesisVoice[] = [];
 
 const synth = (): SpeechSynthesis | null => (typeof window !== "undefined" && "speechSynthesis" in window ? window.speechSynthesis : null);
 
+const isElectron = (): boolean =>
+  typeof window !== "undefined" && Boolean((window as any).sunday?.isElectron);
+
 function refreshVoices(): SpeechSynthesisVoice[] {
   const s = synth();
   if (!s) return [];
@@ -109,6 +112,10 @@ export function speakableText(text: string): string {
 
 /** Says a line in Sunday's voice (or babbles it). Interrupts whatever he was saying. */
 export function say(text: string): void {
+  // In Electron desktop mode, the Python backend manages unified Piper neural TTS.
+  // Suppress Web Speech API to prevent duplicate voices and audio echo.
+  if (isElectron()) return;
+
   if (!enabled || settings.mode === "off") return;
   const clean = speakableText(text);
   if (!clean) return;
@@ -130,6 +137,7 @@ export function say(text: string): void {
 
 /** A short spoken reaction to something that happened (rate-limited). */
 export function react(r: Reaction, opts: { force?: boolean } = {}): void {
+  if (isElectron()) return;
   if (!enabled || settings.mode === "off" || (!settings.reactions && !opts.force)) return;
   const now = performance.now();
   if (!opts.force && now - lastReaction < 3500) return;
@@ -147,7 +155,9 @@ export function react(r: Reaction, opts: { force?: boolean } = {}): void {
 /** Preview helper for settings screens. */
 export function testVoice(text = "Hi! I'm Sunday. Nice to meet you!"): void {
   playSound("greet");
-  window.setTimeout(() => say(text), 250);
+  if (!isElectron()) {
+    window.setTimeout(() => say(text), 250);
+  }
 }
 
 export function stopVoice(): void {

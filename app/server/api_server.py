@@ -281,6 +281,7 @@ class SundayApiHandler(BaseHTTPRequestHandler):
             result = workflow_engine.handle_objective(text)
 
             # 3. Synchronize completion to character
+            spoken = ""
             if result.get("success"):
                 spoken = result.get("spoken_message", "Task completed.")
                 event_broker.emit("state_change", state="celebrating", speech=spoken)
@@ -289,10 +290,21 @@ class SundayApiHandler(BaseHTTPRequestHandler):
                 prompt = result.get("spoken_prompt", "Approval required.")
                 event_broker.emit("state_change", state="thinking", speech=prompt)
                 event_broker.emit("chat_message", role="system", text=prompt)
+                spoken = prompt
             else:
                 err_msg = result.get("spoken_message") or result.get("error") or "Execution failed."
                 event_broker.emit("state_change", state="error", speech=err_msg)
                 event_broker.emit("chat_message", role="system", text=err_msg)
+                spoken = err_msg
+
+            # Unified speech output: Speak aloud via Piper TTS if voice is unmuted and audio hardware is available
+            from app.voice.audio_io import audio_io
+            if spoken and not audio_io.is_muted:
+                try:
+                    from app.voice.tts import tts
+                    threading.Thread(target=lambda: tts.speak(spoken), daemon=True).start()
+                except Exception as e:
+                    audit_logger.warning("TTS playback error in api_server: %s", e)
 
             self._send_json(200, result)
             return

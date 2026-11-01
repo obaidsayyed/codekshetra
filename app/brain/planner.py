@@ -306,7 +306,9 @@ def has_action_intent(objective: str) -> bool:
         "reminder", "remind", "month-end", "month end", "reconcile", "reconciliation",
         "gst return", "gstr1", "gstr-1", "file gst", "close month", "overdue",
         "email", "mail", "gmail", "send", "playing", "opening", "writing", "spotify", "vlc",
-        "whatsapp", "read mail", "read email", "read whatsapp", "read message", "read "
+        "whatsapp", "read mail", "read email", "read whatsapp", "read message", "read ",
+        "run ", "start ", "execute ", "generate ", "prepare ", "month end close",
+        "close month-end", "close the month", "trial balance", "balance sheet"
     ]
     return any(k in obj_l for k in action_keywords)
 

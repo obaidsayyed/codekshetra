@@ -149,6 +149,14 @@ class VoiceSession:
 
         audit_logger.info("Processing user utterance: '%s'", text)
 
+        # Synchronize user's voice message to chat panel and set 3D pet to thinking
+        try:
+            from app.server.api_server import event_broker
+            event_broker.emit("chat_message", role="user", text=text)
+            event_broker.emit("state_change", state="thinking", speech=self.generate_thinking_phrase(text) or "Thinking...")
+        except Exception:
+            pass
+
         # Check for emergency stop
         if any(w in text.lower() for w in ["sunday stop", "stop execution", "cancel task", "stop"]):
             self.engine.emergency_stop()
@@ -201,6 +209,12 @@ class VoiceSession:
             if status == "conversational":
                 self.state = SessionState.SPEAKING
                 spoken = result.get("spoken_message", "I understand.")
+                try:
+                    from app.server.api_server import event_broker
+                    event_broker.emit("state_change", state="celebrating", speech=spoken)
+                    event_broker.emit("chat_message", role="sunday", text=spoken)
+                except Exception:
+                    pass
                 self.tts.speak(spoken)
                 return result
 
@@ -208,18 +222,36 @@ class VoiceSession:
                 self.state = SessionState.WAITING_FOR_APPROVAL
                 self.active_approval_id = result.get("approval_id")
                 prompt = result.get("spoken_prompt", "Approval required.")
+                try:
+                    from app.server.api_server import event_broker
+                    event_broker.emit("state_change", state="thinking", speech=prompt)
+                    event_broker.emit("chat_message", role="system", text=prompt)
+                except Exception:
+                    pass
                 self.tts.speak(prompt)
                 return result
 
             elif status == "waiting_for_resource":
                 self.state = SessionState.SPEAKING
                 spoken = result.get("spoken_message", "Task is waiting for network resource.")
+                try:
+                    from app.server.api_server import event_broker
+                    event_broker.emit("state_change", state="thinking", speech=spoken)
+                    event_broker.emit("chat_message", role="system", text=spoken)
+                except Exception:
+                    pass
                 self.tts.speak(spoken)
                 return result
 
             elif status == "clarification_needed":
                 self.state = SessionState.SPEAKING
                 spoken = result.get("spoken_message", "Please clarify.")
+                try:
+                    from app.server.api_server import event_broker
+                    event_broker.emit("state_change", state="thinking", speech=spoken)
+                    event_broker.emit("chat_message", role="sunday", text=spoken)
+                except Exception:
+                    pass
                 self.tts.speak(spoken)
 
                 # Clarification Turn: Keep microphone open for user's answer
@@ -262,6 +294,14 @@ class VoiceSession:
             elif status == "completed":
                 self.state = SessionState.SPEAKING
                 spoken = result.get("spoken_message", "Task completed.")
+
+                # Synchronize character bubble & chat history
+                try:
+                    from app.server.api_server import event_broker
+                    event_broker.emit("state_change", state="celebrating", speech=spoken)
+                    event_broker.emit("chat_message", role="sunday", text=spoken)
+                except Exception:
+                    pass
 
                 # Append follow-up prompt so conversation continues naturally
                 if not any(f in spoken.lower() for f in ["anything else", "what else", "need anything"]):
@@ -345,6 +385,12 @@ class VoiceSession:
                     raw_err = result.get("error", "An error occurred during execution.")
                     from app.brain.planner import format_error_for_speech
                     spoken_msg = format_error_for_speech(raw_err)
+                try:
+                    from app.server.api_server import event_broker
+                    event_broker.emit("state_change", state="error", speech=spoken_msg)
+                    event_broker.emit("chat_message", role="system", text=spoken_msg)
+                except Exception:
+                    pass
                 self.tts.speak(spoken_msg)
                 return result
 
@@ -353,6 +399,12 @@ class VoiceSession:
             audit_logger.error("Exception in process_user_utterance: %s", ex, exc_info=True)
             from app.brain.planner import format_error_for_speech
             clean_spoken_err = format_error_for_speech(str(ex))
+            try:
+                from app.server.api_server import event_broker
+                event_broker.emit("state_change", state="error", speech=clean_spoken_err)
+                event_broker.emit("chat_message", role="system", text=clean_spoken_err)
+            except Exception:
+                pass
             self.tts.speak(clean_spoken_err)
             return {"success": False, "status": "failed", "error": str(ex), "spoken_message": clean_spoken_err}
 
@@ -371,6 +423,12 @@ class VoiceSession:
         result = self.engine.process_voice_approval(approval_id, spoken_text)
         self.state = SessionState.IDLE
         spoken = result.get("spoken_message", "Approval processed.")
+        try:
+            from app.server.api_server import event_broker
+            event_broker.emit("state_change", state="celebrating" if result.get("success") else "idle", speech=spoken)
+            event_broker.emit("chat_message", role="sunday", text=spoken)
+        except Exception:
+            pass
         self.tts.speak(spoken)
         return result
 

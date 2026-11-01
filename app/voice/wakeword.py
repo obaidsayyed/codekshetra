@@ -201,10 +201,13 @@ class BackgroundVoiceListener:
                                                 elif "invoice" in bot_q and len(txt_lower.split()) <= 6:
                                                     is_answering_question = True
 
-                                            # In standby mode: STRICTLY require the start word 'Sunday'
-                                            # Ambient room conversation without 'Sunday' is ignored
-                                            if is_wake or is_answering_question:
-                                                audit_logger.info("Spoken wake word/command detected: '%s'", txt)
+                                            # Direct Action Commands: If user speaks an explicit task (e.g. 'Run month end close', 'Create invoice', 'Open YouTube')
+                                            from app.brain.planner import has_action_intent
+                                            is_action = has_action_intent(txt_lower)
+
+                                            # In standby mode: Trigger on wake word, follow-up answer, or direct action intent
+                                            if is_wake or is_answering_question or is_action:
+                                                audit_logger.info("Spoken wake word/command detected: '%s' (is_wake=%s, is_action=%s)", txt, is_wake, is_action)
                                                 self._handle_wake(txt)
                                                 break
                                             else:
@@ -243,6 +246,10 @@ class BackgroundVoiceListener:
         # Extract possible inline command after the wake word (e.g. 'Hey Sunday open YouTube')
         cmd = re.sub(r'^(hey|hi|hello|ok|okay)?\s*(sunday|wolf|someday|sun day|sundae|sunde|sundy|sendai|sanjay|sundar|jarvis)[,\s]*', '', detected_text, flags=re.IGNORECASE).strip()
         cmd = cmd.lstrip(".,!? ").strip()
+
+        # If user spoke a direct command without a wake prefix (e.g. 'Run month end close.')
+        if not cmd and detected_text:
+            cmd = detected_text.strip().lstrip(".,!? ").strip()
 
         if cmd and len(cmd) > 2:
             audit_logger.info("Executing inline command following wake word: '%s'", cmd)
