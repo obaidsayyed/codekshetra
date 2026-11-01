@@ -10,10 +10,18 @@ import re
 from pathlib import Path
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
-import pywinauto
-from pywinauto import Application
-import pyautogui
-pyautogui.FAILSAFE = False
+try:
+    import pywinauto
+    from pywinauto import Application
+except Exception:
+    pywinauto = None
+    Application = None
+
+try:
+    import pyautogui
+    pyautogui.FAILSAFE = False
+except Exception:
+    pyautogui = None
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 

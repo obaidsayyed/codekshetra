@@ -14,8 +14,6 @@ from app.orchestration.scheduler import scheduler
 from app.orchestration.engine import workflow_engine
 from app.brain.ollama_client import ollama_client
 from app.voice.session import voice_session
-from app.tray.app import tray_app
-from app.ui.gui import run_gui
 from app.server.api_server import start_server_in_background
 
 
@@ -149,6 +147,7 @@ def run_companion() -> int:
     except Exception as e:
         audit_logger.error("Error launching Electron companion: %s", e)
         print("Falling back to legacy desktop GUI...")
+        from app.ui.gui import run_gui
         return run_gui()
     finally:
         scheduler.stop()
@@ -217,6 +216,7 @@ def main():
         sys.exit(0)
 
     if args.tray:
+        from app.tray.app import tray_app
         recovery_manager.recover()
         scheduler.start()
         print("SUNDAY running in system tray. Right-click the tray icon to control.")
@@ -229,6 +229,7 @@ def main():
         sys.exit(0)
 
     if args.legacy_gui:
+        from app.ui.gui import run_gui
         run_gui()
         sys.exit(0)
 

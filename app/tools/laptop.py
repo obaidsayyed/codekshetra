@@ -9,7 +9,10 @@ import os
 import re
 import urllib.parse
 import urllib.request
-import winreg
+try:
+    import winreg
+except ImportError:
+    winreg = None
 import webbrowser
 from datetime import datetime
 from pathlib import Path
@@ -103,6 +106,8 @@ APP_ALIASES = {
 
 def get_registered_windows_apps() -> Dict[str, str]:
     """Scans Windows Registry for registered App Paths."""
+    if not winreg:
+        return {}
     app_map = {}
     for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
         try:

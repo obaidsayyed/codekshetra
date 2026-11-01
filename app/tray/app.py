@@ -5,8 +5,12 @@ Pystray icon with status indications, mute toggle, push-to-talk, and emergency s
 import threading
 from typing import Optional
 from PIL import Image, ImageDraw
-import pystray
-from pystray import MenuItem as item
+try:
+    import pystray
+    from pystray import MenuItem as item
+except Exception:
+    pystray = None
+    item = None
 from app.voice.audio_io import audio_io
 from app.orchestration.engine import workflow_engine
 from app.voice.session import voice_session
