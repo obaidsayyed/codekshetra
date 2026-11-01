@@ -76,9 +76,10 @@ class SpeechToText:
         model = self._get_model()
         lang = language if language else "en"
         prompt = (
-            "SUNDAY is an offline AI employee on Windows 11. Clear English speech. "
-            "Commands: create invoice in Excel, write essay in Word, spreadsheet, "
-            "open YouTube, Chrome, calculator, check battery, files, search, draft message, clear history."
+            "Hey Sunday! SUNDAY is an offline AI employee on Windows 11. "
+            "Commands: Hey Sunday, Sunday, create invoice in Excel, write in Word, "
+            "open Spotify, VLC, Chrome, Notepad, Calculator, play on YouTube, "
+            "draft email to, mail to, check battery, run month end close, reconcile."
         )
 
         segments, info = model.transcribe(

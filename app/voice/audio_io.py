@@ -109,7 +109,7 @@ class AudioIO:
                         ambient_samples.append(rms)
                         if len(ambient_samples) == 2:
                             ambient_floor = float(np.mean(ambient_samples))
-                            effective_threshold = max(energy_threshold, ambient_floor * 2.5)
+                            effective_threshold = min(0.02, max(energy_threshold, ambient_floor * 1.5))
                             audit_logger.debug("Ambient noise floor: %.5f, effective speech threshold: %.5f", ambient_floor, effective_threshold)
 
                     if on_chunk:
@@ -148,7 +148,7 @@ class AudioIO:
 
             # Gain normalization only for genuine speech signals
             max_val = float(np.max(np.abs(filtered)))
-            if max_val >= 0.015:
+            if max_val >= 0.005:
                 gain = min(0.85 / max_val, 10.0)
                 filtered = filtered * gain
             else:

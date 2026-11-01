@@ -159,10 +159,7 @@ class SundayApiHandler(BaseHTTPRequestHandler):
             # Trigger voice recording
             def _run_voice():
                 event_broker.emit("state_change", state="listening", speech="Listening...")
-                voice_session.process_user_utterance(
-                    text="", # Will record
-                    auto_listen_followup=True
-                )
+                voice_session.trigger_push_to_talk()
             threading.Thread(target=_run_voice, daemon=True).start()
             self._send_json(200, {"success": True, "message": "Voice listening triggered"})
             return

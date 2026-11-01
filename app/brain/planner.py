@@ -7,6 +7,7 @@ import uuid
 import re
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
+from app.config.settings import settings
 from app.brain.prompts import SYSTEM_PROMPT
 from app.brain.ollama_client import ollama_client, OllamaClient
 from app.tools.registry import tool_registry, ToolRegistry

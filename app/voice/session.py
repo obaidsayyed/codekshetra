@@ -37,9 +37,23 @@ class VoiceSession:
         self.tts = speech_tts
         self.engine = engine
         self.on_status_change = on_status_change
-        self.state = SessionState.IDLE
+        self._state = SessionState.IDLE
         self.active_approval_id: Optional[str] = None
         self.is_task_executing: bool = False
+
+    @property
+    def state(self) -> SessionState:
+        return self._state
+
+    @state.setter
+    def state(self, new_state: SessionState) -> None:
+        self._state = new_state
+        if self.on_status_change:
+            try:
+                val = new_state.value if isinstance(new_state, SessionState) else str(new_state)
+                self.on_status_change(val)
+            except Exception as e:
+                audit_logger.warning("Error in on_status_change: %s", e)
 
     def generate_thinking_phrase(self, text: str) -> str:
         """

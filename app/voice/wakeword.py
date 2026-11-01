@@ -142,22 +142,21 @@ class BackgroundVoiceListener:
 
                         chunk_int16 = (np.clip(chunk_16k, -1.0, 1.0) * 32767.0).astype(np.int16)
 
-                        # Continuous Speech Buffer & VAD strictly for 'Sunday' / 'Hey Sunday'
-                        # Reject ambient noise floor (< 0.008)
-                        if rms >= 0.008:
+                        # Continuous Speech Buffer & VAD
+                        if peak >= 0.015 or rms >= 0.005:
                             speech_active = True
                             silence_after_speech_sec = 0.0
                             speech_buffer.append(chunk_int16)
-                            # Keep buffer to max ~4 seconds
-                            if len(speech_buffer) > 28:
+                            # Keep buffer to max ~5 seconds
+                            if len(speech_buffer) > 35:
                                 speech_buffer.pop(0)
                         else:
                             if speech_active:
                                 silence_after_speech_sec += chunk_duration
                                 speech_buffer.append(chunk_int16)
 
-                                # Speech pause / endpoint reached (0.6s)
-                                if silence_after_speech_sec >= 0.6:
+                                # Speech pause / endpoint reached (0.65s)
+                                if silence_after_speech_sec >= 0.65:
                                     speech_active = False
                                     silence_after_speech_sec = 0.0
 
@@ -165,33 +164,38 @@ class BackgroundVoiceListener:
                                         full_buf = np.concatenate(speech_buffer)
                                         speech_buffer.clear()
 
-                                        # Only transcribe if audio is >= 0.6 seconds
-                                        if len(full_buf) >= 9600:
+                                        # Only transcribe if audio is >= 0.5 seconds
+                                        if len(full_buf) >= 8000:
                                             res = stt.transcribe_audio(full_buf)
                                             txt = res.get("text", "").strip()
                                             txt_lower = txt.lower()
 
-                                            # Strict Sunday wake words only
+                                            # Comprehensive wake triggers including common phonetics
                                             wake_triggers = [
                                                 "sunday", "hey sunday", "hi sunday",
-                                                "hello sunday", "ok sunday"
+                                                "hello sunday", "ok sunday", "okay sunday",
+                                                "someday", "sun day", "sundae", "sunde",
+                                                "sundy", "sendai", "sanjay", "sundar", "wolf", "jarvis"
                                             ]
                                             is_wake = any(w in txt_lower for w in wake_triggers)
 
-                                            # Direct imperative commands and meeting requests
-                                            from app.brain.planner import extract_meeting_time
+                                            # Direct commands and action queries
+                                            from app.brain.planner import extract_meeting_time, has_action_intent
                                             is_direct_command = (
                                                 txt_lower.startswith((
-                                                    "remember that", "remember i", "remind me", "i have a meeting",
-                                                    "today i have a meeting", "schedule", "meeting today",
-                                                    "when is my meeting", "what time is my meeting", "draft",
-                                                    "create an invoice", "make an invoice", "play ", "increase",
-                                                    "expand ", "open word", "open excel", "open chrome", "open youtube"
+                                                    "open ", "launch ", "start ", "run ", "play ", "playing ",
+                                                    "draft ", "mail ", "email ", "send ", "write ", "create ", "make ",
+                                                    "check ", "search ", "find ", "calculate ", "remind ", "remember ",
+                                                    "schedule ", "close ", "kill ", "stop ", "who ", "what ", "how ", "tell me "
                                                 ))
-                                                or ("meeting" in txt_lower and extract_meeting_time(txt_lower) is not None)
-                                                or ("invoice" in txt_lower and any(w in txt_lower for w in ["create", "make", "for", "rs", "rupees"]))
-                                                or ("essay" in txt_lower and any(w in txt_lower for w in ["draft", "write", "create", "rain", "word"]))
-                                                or any(w in txt_lower for w in ["month-end", "month end", "reconcile", "reconciliation", "gst return", "file gst"])
+                                                or has_action_intent(txt_lower)
+                                                or any(w in txt_lower for w in [
+                                                    "month-end", "month end", "reconcile", "reconciliation", "gst return", "file gst",
+                                                    "invoice", "spreadsheet", "excel", "word", "essay", "article",
+                                                    "youtube", "spotify", "vlc", "calculator", "battery", "chrome",
+                                                    "gmail", "email"
+                                                ])
+                                                or len(txt_lower.split()) >= 2
                                             )
 
                                             # Check if user is replying to a recent clarifying question
@@ -234,7 +238,7 @@ class BackgroundVoiceListener:
             return
 
         # Extract possible inline command after the wake word (e.g. 'Hey Sunday open YouTube')
-        cmd = re.sub(r'^(hey|hi|hello|ok|okay)?\s*(sunday)[,\s]*', '', detected_text, flags=re.IGNORECASE).strip()
+        cmd = re.sub(r'^(hey|hi|hello|ok|okay)?\s*(sunday|wolf|someday|sun day|sundae|sunde|sundy|sendai|sanjay|sundar|jarvis)[,\s]*', '', detected_text, flags=re.IGNORECASE).strip()
         cmd = cmd.lstrip(".,!? ").strip()
 
         if cmd and len(cmd) > 2:
@@ -249,6 +253,7 @@ class BackgroundVoiceListener:
             def run_wake_prompt():
                 try:
                     tts.speak("Yes? I am listening.")
+                    time.sleep(0.4)  # Let acoustic echo completely fade before listening
                     if self.on_status_change:
                         self.on_status_change("recording")
                     voice_session.trigger_push_to_talk()
