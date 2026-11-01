@@ -217,3 +217,4 @@ def start_server_in_background(host: str = "127.0.0.1", port: int = 8765) -> Thr
         thread.start()
         time.sleep(0.2)  # Give socket a moment to bind
         return server
+

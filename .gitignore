@@ -19,6 +19,7 @@ data/temp/
 data/backups/
 data/models/
 data/workspace/
+data/calls/
 
 # Environment and secrets
 .env

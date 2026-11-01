@@ -305,6 +305,33 @@ class CreateEmailDraftTool(BaseTool):
         txt_path.write_text(full_content, encoding="utf-8")
         eml_path.write_text(full_content, encoding="utf-8")
 
+        # 3. Visually launch Gmail compose screen on Desktop or Mobile
+        import urllib.parse
+        encoded_to = urllib.parse.quote(recipient)
+        encoded_su = urllib.parse.quote(subject)
+        encoded_body = urllib.parse.quote(body)
+        gmail_url = f"https://mail.google.com/mail/u/?view=cm&fs=1&to={encoded_to}&su={encoded_su}&body={encoded_body}"
+
+        if settings.is_mobile():
+            try:
+                from app.tools.mobile import mobile_launcher
+                mobile_launcher.launch_gmail_compose(to_email=recipient, subject=subject, body=body)
+            except Exception as e:
+                audit_logger.warning("Mobile Gmail launch warning: %s", e)
+        else:
+            try:
+                from app.tools.laptop import get_registered_windows_apps
+                reg_apps = get_registered_windows_apps()
+                chrome_bin = reg_apps.get("chrome.exe") or reg_apps.get("chrome") or r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+                if chrome_bin and Path(chrome_bin).exists():
+                    audit_logger.info("Visually opening Gmail compose in Google Chrome on screen: %s", chrome_bin)
+                    subprocess.Popen([chrome_bin, gmail_url])
+                else:
+                    audit_logger.info("Opening Gmail compose via Windows Shell: %s", gmail_url)
+                    subprocess.Popen(f'cmd.exe /c start "" "{gmail_url}"', shell=True)
+            except Exception as e:
+                audit_logger.warning("Could not launch Chrome for Gmail: %s", e)
+
         return ToolResult(
             success=True,
             output_path=str(txt_path),
@@ -313,9 +340,10 @@ class CreateEmailDraftTool(BaseTool):
                 "subject": subject,
                 "txt_path": str(txt_path),
                 "eml_path": str(eml_path),
-                "status": "draft_saved_not_sent"
+                "gmail_url": gmail_url,
+                "status": "draft_saved_opened_on_screen"
             },
-            evidence=f"Email draft saved locally for {recipient}. Not sent."
+            evidence=f"Email drafted to {recipient} with subject '{subject}'. Saved offline draft and opened Gmail compose on screen."
         )
 
 

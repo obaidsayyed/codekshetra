@@ -303,9 +303,64 @@ def has_action_intent(objective: str) -> bool:
         "draft ", "save ", "close ", "kill ", "increase", "expand", "extend", "words",
         "word", "longer", "rewrite", "make it", "meeting", "appointment", "schedule",
         "reminder", "remind", "month-end", "month end", "reconcile", "reconciliation",
-        "gst return", "gstr1", "gstr-1", "file gst", "close month", "overdue"
+        "gst return", "gstr1", "gstr-1", "file gst", "close month", "overdue",
+        "email", "mail", "gmail", "send", "playing", "opening", "writing", "spotify", "vlc"
     ]
     return any(k in obj_l for k in action_keywords)
+
+
+def parse_email_details(text: str) -> tuple[str, str, str]:
+    """
+    Extracts (recipient, subject, body) from an email drafting command.
+    Handles commands like:
+    - "mail obaidalisayyed8055@gmail.com about the pending bill of interact ai"
+    - "draft an email to ombangare469@gmail.com regarding monthly reconciliation"
+    - "send email to test@example.com with subject Meeting and message Hello"
+    """
+    text_clean = text.strip()
+
+    # 1. Extract recipient email address (regex)
+    emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', text_clean)
+    recipient = emails[0] if emails else ""
+
+    if not recipient:
+        # Check "to <name/email>"
+        m_to = re.search(r'\bto\s+([A-Za-z0-9_.\s]+?)(?:\s+(?:about|regarding|with|subject|for|saying)\b|$)', text_clean, re.IGNORECASE)
+        if m_to:
+            recipient = m_to.group(1).strip()
+        else:
+            recipient = "obaidalisayyed8055@gmail.com"
+
+    # 2. Extract subject
+    subject = ""
+    m_subj = re.search(r'\b(?:about|regarding|subject|re)\s+([A-Za-z0-9_.\s\-]+?)(?:\s+(?:with\s+message|saying|body:)\b|$)', text_clean, re.IGNORECASE)
+    if m_subj:
+        subject = m_subj.group(1).strip().strip(".,!?:")
+    if not subject:
+        if "pending bill" in text_clean.lower() or "interact ai" in text_clean.lower():
+            subject = "Pending Bill Settlement - Interact AI"
+        elif "invoice" in text_clean.lower():
+            subject = "Tax Invoice and Payment Details"
+        else:
+            subject = "Business Update and Official Communication"
+
+    # 3. Extract body
+    body = ""
+    m_body = re.search(r'\b(?:with\s+message|saying|body:)\s+(.+)$', text_clean, re.IGNORECASE)
+    if m_body:
+        body = m_body.group(1).strip()
+    else:
+        body = (
+            f"Dear Partner / Client,\n\n"
+            f"This is an official communication regarding: {subject}.\n\n"
+            f"Please review the associated accounts and documentation. "
+            f"Kindly confirm receipt and arrange for the necessary processing at your earliest convenience.\n\n"
+            f"Sincerely,\n"
+            f"Om Bangare\n"
+            f"Interact AI / ABC Enterprises"
+        )
+
+    return recipient, subject, body
 
 
 def parse_invoice_details(text: str) -> tuple[Optional[str], Optional[float]]:
@@ -441,6 +496,131 @@ class Planner:
                     )
                 ],
                 spoken_summary="Starting month-end close: opening the synthetic GST portal, the reconciliation spreadsheet in Excel, the executive summary in Word, and Gmail on Chrome for Interact AI."
+            )
+
+        # Fast path for Email Drafting & Compose (e.g. 'draft an email to ombangare469@gmail.com')
+        has_email_addr = bool(re.search(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', objective))
+        is_email_intent = has_email_addr or any(w in obj_l for w in [
+            "draft an email", "draft email", "compose email", "send an email",
+            "send email", "write an email", "mail to", "mail ", "send mail", "draft mail"
+        ])
+        if is_email_intent and not any(w in obj_l for w in ["month-end", "month end", "reconcile", "gst return"]):
+            recipient, subject, body = parse_email_details(objective)
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="create_email_draft",
+                        arguments={"recipient": recipient, "subject": subject, "body": body},
+                        risk_level="R1"
+                    )
+                ],
+                spoken_summary=f"Drafting email to {recipient} regarding '{subject}' and opening Gmail compose on your screen."
+            )
+
+        # Fast path for Invoice Creation in Excel (e.g. 'create an invoice in excel', 'creating an invoice in excel')
+        is_invoice_req = any(w in obj_l for w in [
+            "invoice", "invoicing", "creating an invoice", "create an invoice",
+            "make an invoice", "generate invoice", "create invoice"
+        ])
+        if is_invoice_req and not any(w in obj_l for w in ["month-end", "month end", "reconcile", "gst return"]):
+            customer, amt = parse_invoice_details(objective)
+            customer = customer or "Interact AI"
+            amt = amt if amt is not None else 5000.0
+            tax_rate = 18.0
+            total_with_tax = amt * (1.0 + tax_rate / 100.0)
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="create_invoice",
+                        arguments={
+                            "customer_name": customer,
+                            "items": [
+                                {"description": "Professional Consulting & Workflow Automation", "quantity": 1, "unit_price": amt}
+                            ],
+                            "tax_rate_percent": tax_rate,
+                            "currency": "INR"
+                        },
+                        risk_level="R1"
+                    )
+                ],
+                spoken_summary=f"Creating verified invoice for {customer} of Rs {int(amt) if amt.is_integer() else amt} totaling Rs {total_with_tax:,.2f} with 18% tax on your Desktop and opening Excel on your screen."
+            )
+
+        # Fast path for Writing in Microsoft Word (e.g. 'writing anything on word', 'write an essay on rain in word')
+        is_word_write_req = any(w in obj_l for w in [
+            "word", "microsoft word", "essay", "article", "draft a document",
+            "write a document", "type in notepad", "write in word", "open wordpad",
+            "write a letter", "leave application", "write notes", "writing anything on word",
+            "write something in word", "write anything in word", "write on word",
+            "type in word", "draft in word"
+        ])
+        if is_word_write_req and not any(w in obj_l for w in ["month-end", "month end", "reconcile", "gst return", "invoice"]):
+            req_wc = extract_requested_word_count(objective) or 250
+            title, doc_content, app = build_document_content(objective, min_words=req_wc)
+            app_display = "Microsoft Word" if app == "word" else app.capitalize()
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="visual_open_and_type",
+                        arguments={"title": title, "text": doc_content, "app_choice": app, "save_copy": True},
+                        risk_level="R1"
+                    )
+                ],
+                spoken_summary=f"Drafting '{title}' in {app_display} on your desktop and opening the document on screen."
+            )
+
+        # Fast path for YouTube Playback (e.g. 'playing anything on youtube', 'play believer on youtube')
+        is_yt_play_req = (
+            ("youtube" in obj_l and any(w in obj_l for w in ["play", "playing", "song", "music", "video", "listen"]))
+            or (obj_l.startswith(("play ", "playing ")) and not any(k in obj_l for k in ["role", "game", "with", "meeting"]))
+        )
+        if is_yt_play_req and not any(w in obj_l for w in ["month-end", "month end"]):
+            clean_q = re.sub(r'^(open\s+)?(youtube\s+)?(and\s+)?(play\s+|playing\s+)?', '', obj_l, flags=re.IGNORECASE).strip()
+            clean_q = re.sub(r'\s*(on\s+youtube|in\s+youtube|on\s+yt|video|song|music)\s*$', '', clean_q, flags=re.IGNORECASE).strip()
+            clean_q = clean_q.rstrip(" on").strip()
+            if not clean_q or clean_q in ("anything", "something", "any", "song", "songs", "music", "video"):
+                clean_q = "top trending music"
+            target_cmd = f"play {clean_q} on youtube"
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="launch_application",
+                        arguments={"app_name": target_cmd},
+                        risk_level="R1"
+                    )
+                ],
+                spoken_summary=f"Playing '{clean_q}' on YouTube in your browser."
+            )
+
+        # Fast path for Opening Any Apps (e.g. 'open spotify', 'open chrome', 'open notepad', 'opening of any apps')
+        is_app_open_req = (
+            obj_l.startswith(("open ", "launch ", "start ", "run ", "opening of "))
+            or any(w in obj_l for w in ["open app", "launch app", "start app", "opening of any apps", "open the app"])
+        )
+        if is_app_open_req and not any(w in obj_l for w in ["month-end", "month end", "meeting", "invoice"]):
+            raw_target = re.sub(r'^(can you\s+)?(please\s+)?(open|launch|start|run|opening of)\s+(the\s+app\s+|app\s+|the\s+)?', '', obj_l, flags=re.IGNORECASE).strip()
+            raw_target = re.sub(r'\s*(on my laptop|on laptop|on desktop|app|please)\s*$', '', raw_target, flags=re.IGNORECASE).strip()
+            if not raw_target or raw_target in ("any apps", "apps", "any app"):
+                raw_target = "chrome"
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="launch_application",
+                        arguments={"app_name": raw_target},
+                        risk_level="R1"
+                    )
+                ],
+                spoken_summary=f"Opening {raw_target.capitalize()} on your laptop."
             )
 
         # 2. Build messages with multi-turn conversation history
@@ -792,8 +972,29 @@ class Planner:
                 spoken_summary=f"Playing {query} on YouTube now."
             )
 
+        # Email Drafting & Compose (e.g. 'draft an email to ombangare469@gmail.com')
+        has_email_addr = bool(re.search(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', objective))
+        is_email_intent = has_email_addr or any(w in obj_lower for w in [
+            "draft an email", "draft email", "compose email", "send an email",
+            "send email", "write an email", "mail to", "mail ", "send mail", "draft mail"
+        ])
+        if is_email_intent and not any(w in obj_lower for w in ["month-end", "month end", "reconcile", "gst return"]):
+            recipient, subject, body = parse_email_details(objective)
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="create_email_draft",
+                        arguments={"recipient": recipient, "subject": subject, "body": body},
+                        risk_level="R1"
+                    )
+                ],
+                spoken_summary=f"Drafting email to {recipient} regarding '{subject}' and opening Gmail compose on your screen."
+            )
+
         # 6. Applications and Web Services Launching
-        if any(w in obj_lower for w in ["open", "launch", "play", "show me", "start"]):
+        if any(w in obj_lower for w in ["open", "launch", "play", "show me", "start", "opening"]):
             # Web services (YouTube, Facebook, etc.)
             for web_k in ["youtube", "facebook", "whatsapp", "instagram", "gmail", "twitter", "reddit", "linkedin", "github", "chatgpt"]:
                 if web_k in obj_lower:
@@ -849,6 +1050,23 @@ class Planner:
                         spoken_summary=f"Opening {app_key} on your laptop."
                     )
 
+            # Fallback for opening any other application (Spotify, VLC, Telegram, etc.)
+            raw_target = re.sub(r'^(can you\s+)?(please\s+)?(open|launch|start|run|opening of)\s+(the\s+app\s+|app\s+|the\s+)?', '', obj_lower, flags=re.IGNORECASE).strip()
+            raw_target = re.sub(r'\s*(on my laptop|on laptop|on desktop|app|please)\s*$', '', raw_target, flags=re.IGNORECASE).strip()
+            if raw_target and raw_target not in ("any apps", "apps", "any app"):
+                return ExecutionPlan(
+                    objective=objective,
+                    steps=[
+                        PlannedStep(
+                            step_order=1,
+                            tool_name="launch_application",
+                            arguments={"app_name": raw_target},
+                            risk_level="R1"
+                        )
+                    ],
+                    spoken_summary=f"Opening {raw_target.capitalize()} on your laptop."
+                )
+
         # 7. Visual desktop typing for essays, letters, and documents (Microsoft Word / Desktop)
         if any(w in obj_lower for w in ["essay", "article", "drafting", "draft an essay", "write an essay", "write a document", "type in notepad", "write in word", "open wordpad and type", "write a letter", "leave application", "write notes"]):
             req_wc = extract_requested_word_count(objective) or 250
@@ -891,19 +1109,9 @@ class Planner:
             )
 
         # 7. Invoice generation (Saves to Desktop and visibly opens Excel on screen)
-        if any(w in obj_lower for w in ["invoice", "invoicing", "crertatign an invoice", "creating an invoice"]):
+        if any(w in obj_lower for w in ["invoice", "invoicing", "crertatign an invoice", "creating an invoice", "create an invoice"]):
             customer, amt = parse_invoice_details(objective)
-
-            # If user said "create an invoice" without customer name and without amount: ask for clarification!
-            if not customer and not amt:
-                return ExecutionPlan(
-                    objective=objective,
-                    is_ambiguous=True,
-                    clarifying_question="Who should I make the invoice for, and what is the amount?",
-                    spoken_summary="Who should I make the invoice for, and what is the amount?"
-                )
-
-            customer = customer or "ABC Traders"
+            customer = customer or "Interact AI"
             amt = amt if amt is not None else 5000.0
             tax_rate = 18.0
             total_with_tax = amt * (1.0 + tax_rate / 100.0)
@@ -925,7 +1133,7 @@ class Planner:
                         risk_level="R1"
                     )
                 ],
-                spoken_summary=f"Creating verified invoice for {customer} of {int(amt) if amt.is_integer() else amt} rupees totaling {int(total_with_tax) if total_with_tax.is_integer() else total_with_tax:.2f} with 18% tax on your Desktop and opening Excel on your screen."
+                spoken_summary=f"Creating verified invoice for {customer} of Rs {int(amt) if amt.is_integer() else amt} totaling Rs {total_with_tax:,.2f} with 18% tax on your Desktop and opening Excel on your screen."
             )
 
         # 7. System status & battery
