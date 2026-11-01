@@ -191,6 +191,7 @@ class BackgroundVoiceListener:
                                                 or ("meeting" in txt_lower and extract_meeting_time(txt_lower) is not None)
                                                 or ("invoice" in txt_lower and any(w in txt_lower for w in ["create", "make", "for", "rs", "rupees"]))
                                                 or ("essay" in txt_lower and any(w in txt_lower for w in ["draft", "write", "create", "rain", "word"]))
+                                                or any(w in txt_lower for w in ["month-end", "month end", "reconcile", "reconciliation", "gst return", "file gst"])
                                             )
 
                                             # Check if user is replying to a recent clarifying question

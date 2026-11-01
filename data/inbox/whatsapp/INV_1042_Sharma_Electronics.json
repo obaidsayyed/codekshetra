@@ -1,0 +1,23 @@
+{
+  "invoice_number": "INV-2026-1042",
+  "source": "WhatsApp (+91 98112 45892)",
+  "party_name": "Sharma Electronics",
+  "contact_person": "Mr. Ramesh Sharma",
+  "phone": "+91 98112 45892",
+  "gstin": "07AAAAA0000A1Z5",
+  "state": "Delhi",
+  "invoice_date": "2026-10-10",
+  "due_date": "2026-10-17",
+  "taxable_value": 23000.0,
+  "cgst": 2070.0,
+  "sgst": 2070.0,
+  "igst": 0.0,
+  "total_amount": 27140.0,
+  "items": [
+    {
+      "description": "Industrial Power Relays & Components",
+      "qty": 10,
+      "unit_price": 2300.0
+    }
+  ]
+}

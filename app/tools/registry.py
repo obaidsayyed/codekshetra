@@ -18,6 +18,9 @@ from app.tools.windows import VisualOpenAndTypeTool
 from app.tools.laptop import (
     LaunchAppTool, OpenFolderTool, SystemStatusTool, SearchLaptopFilesTool, ScheduleMeetingTool
 )
+from app.tools.reconcile import ReconcileInvoicesTool
+from app.tools.portal_browser import GSTPortalBrowserTool
+from app.tools.multiday_tool import RunMonthEndCloseTool
 from app.tools.network import requires_internet, is_online
 from app.audit.logger import audit_logger
 from app.audit.events import AuditEvent
@@ -50,7 +53,10 @@ class ToolRegistry:
             OpenFolderTool(),
             SystemStatusTool(),
             SearchLaptopFilesTool(),
-            ScheduleMeetingTool()
+            ScheduleMeetingTool(),
+            ReconcileInvoicesTool(),
+            GSTPortalBrowserTool(),
+            RunMonthEndCloseTool()
         ]
         for t in tools:
             self.register(t)

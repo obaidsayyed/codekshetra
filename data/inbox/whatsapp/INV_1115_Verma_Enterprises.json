@@ -1,0 +1,23 @@
+{
+  "invoice_number": "INV-2026-1115",
+  "source": "WhatsApp (+91 98105 11983)",
+  "party_name": "Verma Enterprises",
+  "contact_person": "Mr. Ashok Verma",
+  "phone": "+91 98105 11983",
+  "gstin": "07DDDDD3333D1Z4",
+  "state": "Delhi",
+  "invoice_date": "2026-10-27",
+  "due_date": "2026-11-03",
+  "taxable_value": 55000.0,
+  "cgst": 4950.0,
+  "sgst": 4950.0,
+  "igst": 0.0,
+  "total_amount": 64900.0,
+  "items": [
+    {
+      "description": "Electrical Automation Switchgear Panels",
+      "qty": 2,
+      "unit_price": 27500.0
+    }
+  ]
+}

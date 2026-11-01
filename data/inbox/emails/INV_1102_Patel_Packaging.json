@@ -1,0 +1,23 @@
+{
+  "invoice_number": "INV-2026-1102",
+  "source": "Email (sales@patelpack.com)",
+  "party_name": "Patel Packaging Industries",
+  "contact_person": "Mr. Jignesh Patel",
+  "phone": "+91 97240 88219",
+  "gstin": "24CCCCC2222C1Z9",
+  "state": "Gujarat",
+  "invoice_date": "2026-10-25",
+  "due_date": "2026-10-30",
+  "taxable_value": 30000.0,
+  "cgst": 0.0,
+  "sgst": 0.0,
+  "igst": 5400.0,
+  "total_amount": 35400.0,
+  "items": [
+    {
+      "description": "Corrugated Heavy Duty Shipping Cartons",
+      "qty": 1000,
+      "unit_price": 30.0
+    }
+  ]
+}

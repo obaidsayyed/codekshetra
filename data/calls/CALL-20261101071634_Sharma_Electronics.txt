@@ -1,0 +1,24 @@
+=====================================================
+SUNDAY AI - VERNACULAR OUTBOUND CALL TRANSCRIPT
+Call ID: CALL-20261101071634
+Timestamp: 2026-11-01 07:16:34
+Recipient: Sharma Electronics (Mr. Ramesh Sharma)
+Phone: +91 98112 45892
+Language: Hindi / Hinglish (Vernacular)
+Target Invoice: INV-2026-1042 (Rs.27,140.00)
+Outcome: PARTIAL_PAYMENT_PROMISED
+Promised Immediate: Rs.13,570.00 | Remaining: Rs.13,570.00
+=====================================================
+
+[SUNDAY_AI]:
+  Vernacular: Namaste Sharma ji! Main ABC Enterprises se SUNDAY AI bol raha hoon. Aapka invoice number INV-2026-1042, jo ki 27,140 rupaye ka hai, pichle 15 din se pending chal raha hai. Kya aap iska payment aaj clear kar rahe hain?
+  English:    Hello Sharma! I am SUNDAY AI calling from ABC Enterprises. Your invoice number INV-2026-1042 of Rs.27,140 has been pending for the last 15 days. Are you clearing this payment today?
+
+[CUSTOMER]:
+  Vernacular: Arre namaste bhai sahab. Haan, Ramesh Sharma bol raha hoon. Actually Diwali ke chakkar mein market se payment thoda atka hua tha. Lekin main 50% payment, yaani 13,570 rupaye, abhi 1 ghante mein NEFT se transfer kar raha hoon. Aur baaki jo 13,570 rupaye bachenge, woh aane wale Monday ko pakka clear ho jayenge.
+  English:    Hello sir, Ramesh Sharma speaking. Due to the festival season, our market collections were slightly delayed. However, I am transferring 50% payment, that is Rs.13,570, via NEFT within 1 hour. And the remaining balance of Rs.13,570 will be definitely cleared this upcoming Monday.
+
+[SUNDAY_AI]:
+  Vernacular: Theek hai Sharma ji, maine note kar liya hai ki aap 13,570 rupaye abhi transfer kar rahe hain, aur baaki 13,570 rupaye ke liye maine Monday ki reminder date schedule kar di hai. Sahyog ke liye dhanyavaad, namaste!
+  English:    Understood Sharma ji. I have noted that you are transferring Rs.13,570 right now, and I have scheduled a follow-up reminder for Monday for the remaining Rs.13,570. Thank you for your cooperation, goodbye!
+

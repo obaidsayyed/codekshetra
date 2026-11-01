@@ -245,7 +245,8 @@ def has_action_intent(objective: str) -> bool:
         "chrome", "edge", "youtube", "battery", "create ", "write ", "make ", "type ",
         "draft ", "save ", "close ", "kill ", "increase", "expand", "extend", "words",
         "word", "longer", "rewrite", "make it", "meeting", "appointment", "schedule",
-        "reminder", "remind"
+        "reminder", "remind", "month-end", "month end", "reconcile", "reconciliation",
+        "gst return", "gstr1", "gstr-1", "file gst", "close month", "overdue"
     ]
     return any(k in obj_l for k in action_keywords)
 
@@ -354,6 +355,24 @@ class Planner:
                     clarifying_question="What time is your meeting today?",
                     spoken_summary="What time is your meeting today?"
                 )
+
+        # Fast path for Month-End Close & Financial Reconciliation
+        if any(w in obj_l for w in [
+            "month-end", "month end", "close month", "reconcile", "reconciliation",
+            "gst return", "gstr-1", "gstr1", "file gst", "reconcile invoices", "overdue customer"
+        ]):
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="run_month_end_close",
+                        arguments={"compress_time": True, "auto_approve": True},
+                        risk_level="R1"
+                    )
+                ],
+                spoken_summary="Starting the autonomous month-end financial close: ingesting WhatsApp and Email invoices, reconciling against bank statements, placing an outbound recovery call in Hindi to overdue customers, and filing GSTR-1 on the portal."
+            )
 
         # 2. Build messages with multi-turn conversation history
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -613,6 +632,24 @@ class Planner:
             "write a document", "write notes", "document in word", "in word", "titled",
             "drafting", "draft a", "type in", "write an essay", "article", "letter", "in notepad"
         ])
+
+        # Month-end Close and Financial Reconciliation
+        if any(w in obj_clean for w in [
+            "month-end", "month end", "close month", "reconcile", "reconciliation",
+            "gst return", "gstr-1", "gstr1", "file gst", "reconcile invoices", "overdue customer"
+        ]):
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="run_month_end_close",
+                        arguments={"compress_time": True, "auto_approve": True},
+                        risk_level="R1"
+                    )
+                ],
+                spoken_summary="Starting the autonomous month-end financial close: ingesting WhatsApp and Email invoices, reconciling against bank statements, placing an outbound recovery call in Hindi to overdue customers, and filing GSTR-1 on the portal."
+            )
 
         if not is_doc_cmd and any(w in obj_clean for w in ["meeting", "appointment", "schedule a meeting", "have a meeting", "meeting today", "remind me that i have a meeting", "remember that i have a meeting", "remember i have a meeting", "remind me about my meeting"]):
             meeting_t = extract_meeting_time(obj_clean)

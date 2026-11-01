@@ -1,0 +1,23 @@
+{
+  "invoice_number": "INV-2026-1089",
+  "source": "Email (accounts@interactai.in)",
+  "party_name": "Interact AI Pvt Ltd",
+  "contact_person": "Ms. Priya Mehta",
+  "phone": "+91 98201 33410",
+  "gstin": "27BBBBB1111B1Z2",
+  "state": "Maharashtra",
+  "invoice_date": "2026-10-22",
+  "due_date": "2026-10-29",
+  "taxable_value": 15678.0,
+  "cgst": 0.0,
+  "sgst": 0.0,
+  "igst": 2822.0,
+  "total_amount": 18500.0,
+  "items": [
+    {
+      "description": "AI Pipeline Integration & Cloud Consultation",
+      "qty": 1,
+      "unit_price": 15678.0
+    }
+  ]
+}
