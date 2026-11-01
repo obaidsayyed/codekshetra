@@ -82,21 +82,30 @@ def extract_requested_word_count(text: str, current_count: int = 250) -> Optiona
 def format_error_for_speech(raw_error: str) -> str:
     """
     Simplifies raw exception/system error text into a concise, natural, single-sentence spoken explanation.
-    Uses Ollama LLM if healthy, or clean heuristic parsing so TTS never reads symbols or file paths.
+    Uses active local LLM (PocketPal on mobile, Ollama on desktop) if healthy, or clean heuristic parsing.
     """
     if not raw_error:
         return "I encountered an issue while processing your request."
 
-    # Try Ollama for natural conversational explanation
+    # Try active local LLM for natural conversational explanation
     try:
         from app.brain.ollama_client import ollama_client
-        if ollama_client.check_health():
+        from app.brain.pocketpal_client import pocketpal_client
+        active_client = None
+        if settings.is_mobile() and pocketpal_client.check_health():
+            active_client = pocketpal_client
+        elif ollama_client.check_health():
+            active_client = ollama_client
+        elif pocketpal_client.check_health():
+            active_client = pocketpal_client
+
+        if active_client:
             prompt = (
                 f"You are SUNDAY voice assistant. Convert this technical error into a single friendly, concise spoken sentence for the user. "
                 f"Do not read file paths, brackets, or code symbols. Explain what went wrong in plain English:\n\n"
                 f"Error: {raw_error}"
             )
-            resp = ollama_client.chat([{"role": "user", "content": prompt}], timeout=4.0)
+            resp = active_client.chat([{"role": "user", "content": prompt}], timeout=4.0)
             clean_resp = resp.strip().replace('"', '').replace('\n', ' ')
             if clean_resp and len(clean_resp) < 140 and "{" not in clean_resp:
                 return clean_resp
@@ -333,6 +342,18 @@ class Planner:
         self.client = client
         self.registry = registry
 
+    @property
+    def active_llm_client(self):
+        """Resolves active local LLM client (PocketPal on mobile, Ollama on desktop)."""
+        from app.brain.pocketpal_client import pocketpal_client
+        if settings.is_mobile() and pocketpal_client.check_health():
+            return pocketpal_client
+        if self.client and self.client.check_health():
+            return self.client
+        if pocketpal_client.check_health():
+            return pocketpal_client
+        return self.client
+
     def plan(self, objective: str, context: Optional[str] = None) -> ExecutionPlan:
         """
         Creates a validated execution plan or conversational response for an objective.
@@ -431,10 +452,11 @@ class Planner:
 
         action_intent = has_action_intent(objective)
 
-        # 2. Try Ollama LLM if healthy and accessible
-        if self.client.check_health():
+        # 2. Try active local LLM (PocketPal on mobile, Ollama on desktop) if healthy
+        active_llm = self.active_llm_client
+        if active_llm and active_llm.check_health():
             try:
-                raw_plan = self.client.chat_json(messages, timeout=30.0)
+                raw_plan = active_llm.chat_json(messages, timeout=30.0)
 
                 # Pure conversation requested without action intent
                 if raw_plan.get("is_conversational") and not action_intent:

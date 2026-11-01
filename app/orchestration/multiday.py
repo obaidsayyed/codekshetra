@@ -267,8 +267,13 @@ class MultiDayMonthEndWorkflow:
             excel_path = recon_res.get("report_path")
             if excel_path:
                 try:
-                    audit_logger.info("SCREEN 2: Visually opening Excel reconciliation sheet on screen: %s", excel_path)
-                    subprocess.Popen(f'cmd.exe /c start "" "{excel_path}"', shell=True)
+                    if settings.is_mobile():
+                        from app.tools.mobile import mobile_launcher
+                        audit_logger.info("SCREEN 2 (Mobile): Opening Excel sheet in Microsoft Excel mobile app: %s", excel_path)
+                        mobile_launcher.open_document(Path(excel_path), app="excel")
+                    else:
+                        audit_logger.info("SCREEN 2 (Desktop): Visually opening Excel reconciliation sheet on screen: %s", excel_path)
+                        subprocess.Popen(f'cmd.exe /c start "" "{excel_path}"', shell=True)
                     time.sleep(2.5)  # Pause so owner visually sees and settles the Excel sheet
                 except Exception as e:
                     audit_logger.warning("Could not launch Excel window: %s", e)
@@ -281,11 +286,11 @@ class MultiDayMonthEndWorkflow:
             time.sleep(2.5)  # Pause so owner visually sees and settles the Word summary
 
             # ---------------------------------------------------------
-            # SCREEN 4: Visually open Gmail on Chrome for Interact AI pending bill
+            # SCREEN 4: Visually open Gmail for Interact AI pending bill
             # ---------------------------------------------------------
-            audit_logger.info("SCREEN 4: Opening Gmail on Chrome from ombangare469@gmail.com to obaidalisayyed8055@gmail.com...")
+            audit_logger.info("SCREEN 4: Opening Gmail from ombangare469@gmail.com to obaidalisayyed8055@gmail.com...")
             gmail_res = self._open_gmail_for_interact_ai()
-            time.sleep(2.0)  # Pause so Chrome compose window settles
+            time.sleep(2.0)  # Pause so Gmail window/app settles
 
             # Generate Comprehensive Multi-Day Audit Dossier (.md)
             dossier_path = self._generate_audit_dossier(day_reports, context)
@@ -493,8 +498,13 @@ class MultiDayMonthEndWorkflow:
 
         # Visually launch Word live on screen so the business owner sees the completed executive document
         try:
-            audit_logger.info("Visually opening Word executive report on screen: %s", final_word_path)
-            subprocess.Popen(f'cmd.exe /c start "" "{final_word_path}"', shell=True)
+            if settings.is_mobile():
+                from app.tools.mobile import mobile_launcher
+                audit_logger.info("Visually opening Word executive report in Word mobile app: %s", final_word_path)
+                mobile_launcher.open_document(final_word_path, app="word")
+            else:
+                audit_logger.info("Visually opening Word executive report on screen: %s", final_word_path)
+                subprocess.Popen(f'cmd.exe /c start "" "{final_word_path}"', shell=True)
             time.sleep(1.0)
         except Exception as e:
             audit_logger.warning("Could not launch Word executive report: %s", e)
@@ -632,7 +642,26 @@ class MultiDayMonthEndWorkflow:
         except Exception as e:
             audit_logger.warning("Could not save email draft to disk: %s", e)
 
-        # 2. Locate Google Chrome and open Gmail compose window live on screen
+        # 2. Dispatch Gmail: Direct native Gmail app on mobile, or Google Chrome on desktop
+        if settings.is_mobile():
+            from app.tools.mobile import mobile_launcher
+            audit_logger.info("SCREEN 4 (Mobile): Launching native Gmail mobile app compose directly (no Chrome)...")
+            res = mobile_launcher.launch_gmail_compose(
+                to_email=to_email,
+                subject=subject,
+                body=body,
+                from_email=from_email
+            )
+            time.sleep(2.0)
+            return {
+                "from": from_email,
+                "to": to_email,
+                "subject": subject,
+                "target": "Gmail (Native Mobile App)",
+                "result": res.data
+            }
+
+        # On Desktop: Locate Google Chrome and open Gmail compose window live on screen
         reg_apps = get_registered_windows_apps()
         chrome_bin = reg_apps.get("chrome.exe") or reg_apps.get("chrome") or r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 

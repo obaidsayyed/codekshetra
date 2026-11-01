@@ -97,6 +97,24 @@ class Settings(BaseModel):
     # Visual desktop typing effect speed in seconds
     visual_typing_delay: float = 0.02
 
+    # Device & Mobile Mode Configuration ('desktop' or 'mobile')
+    device_mode: str = "desktop"
+    llm_provider: str = "auto"  # 'auto', 'ollama', or 'pocketpal'
+
+    # PocketPal AI mobile local server configuration (runs locally on mobile devices at localhost:8080/v1)
+    pocketpal_url: str = "http://127.0.0.1:8080"
+    pocketpal_model: str = "qwen2.5-1.5b"
+
+    def is_mobile(self) -> bool:
+        """Determines if SUNDAY is operating in mobile mode (Android/iOS/PocketPal)."""
+        import os
+        env_mode = os.environ.get("SUNDAY_DEVICE_MODE", "").lower()
+        if env_mode in ("mobile", "android", "ios", "phone"):
+            return True
+        if "ANDROID_ROOT" in os.environ or "TERMUX_VERSION" in os.environ:
+            return True
+        return self.device_mode.lower() in ("mobile", "android", "ios", "phone")
+
 
 settings = Settings()
 

@@ -144,6 +144,11 @@ class LaunchAppTool(BaseTool):
 
         audit_logger.info("Resolving launch request for: '%s' (cleaned: '%s')", app_name, raw_name)
 
+        # Mobile Execution: Launch native mobile apps directly without desktop browser
+        if settings.is_mobile():
+            from app.tools.mobile import mobile_launcher
+            return mobile_launcher.launch(app_name)
+
         # 1. Check if it's a YouTube play request (e.g. 'play believer on youtube' or 'play xyz')
         raw_l = app_name.lower().strip()
         if ("youtube" in raw_l and any(w in raw_l for w in ["play", "song", "video", "listen"])) or raw_l.startswith("play "):

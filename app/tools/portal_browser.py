@@ -89,8 +89,13 @@ class GSTPortalBrowserTool(BaseTool):
         # 2. Launch browser visually so owner sees the portal on screen (only if open_browser is True)
         if open_browser:
             try:
-                audit_logger.info("Visually opening GST Portal in browser...")
-                subprocess.Popen(f'cmd.exe /c start "" "{base_url}/gst/login"', shell=True)
+                if settings.is_mobile():
+                    from app.tools.mobile import mobile_launcher
+                    audit_logger.info("Visually opening GST Portal in mobile view...")
+                    mobile_launcher.open_url(f"{base_url}/gst/login")
+                else:
+                    audit_logger.info("Visually opening GST Portal in browser...")
+                    subprocess.Popen(f'cmd.exe /c start "" "{base_url}/gst/login"', shell=True)
                 time.sleep(0.5)
             except Exception as e:
                 audit_logger.warning("Could not launch visual browser: %s", e)
