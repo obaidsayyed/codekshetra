@@ -2,6 +2,7 @@
 SUNDAY configuration module.
 Loads settings from environment variables or defaults according to PRD specifications.
 """
+import os
 from pathlib import Path
 from typing import List
 from pydantic import BaseModel, Field
@@ -11,8 +12,10 @@ class Settings(BaseModel):
     app_name: str = "SUNDAY"
     version: str = "1.0.0"
     
-    # Project paths
-    base_dir: Path = Field(default_factory=lambda: Path(r"C:\Users\omban\.gemini\antigravity\scratch\SUNDAY"))
+    # Project paths (Dynamically resolves on Windows host or Linux Docker/Render)
+    base_dir: Path = Field(
+        default_factory=lambda: Path(os.environ.get("SUNDAY_BASE_DIR") or Path(__file__).resolve().parent.parent.parent)
+    )
     
     @property
     def data_dir(self) -> Path:
@@ -87,8 +90,8 @@ class Settings(BaseModel):
     # Allowed filesystem roots for laptop access (User Profile + Workspace)
     allowed_roots: List[str] = Field(default_factory=lambda: [
         str(Path.home().resolve()),
-        r"C:\Users\omban",
-        r"C:\Users\omban\.gemini\antigravity\scratch\SUNDAY\data\workspace"
+        str(Path(__file__).resolve().parent.parent.parent),
+        str(Path(__file__).resolve().parent.parent.parent / "data" / "workspace")
     ])
     
     # Network policy

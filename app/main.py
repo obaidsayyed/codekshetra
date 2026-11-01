@@ -157,7 +157,8 @@ def run_companion() -> int:
 def run_server():
     """Runs only the backend REST and event bridge server (headless mode for cloud/Render/local)."""
     import os
-    port = int(os.environ.get("PORT", 8765))
+    default_port = 10000 if os.environ.get("RENDER") else 8765
+    port = int(os.environ.get("PORT", default_port))
     host = os.environ.get("HOST", "0.0.0.0")
     recovery_manager.recover()
     ollama_client.ensure_running()

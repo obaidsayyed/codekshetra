@@ -1,17 +1,11 @@
 services:
   - type: web
     name: sunday-ai-engine
-    runtime: python
+    runtime: docker
     plan: standard
-    buildCommand: "pip install -r requirements.txt && (cd sunday && npm install && npm run build:renderer)"
-    startCommand: "python -m app.main --server"
     envVars:
-      - key: PORT
-        value: 8765
       - key: HOST
         value: 0.0.0.0
-      - key: PYTHON_VERSION
-        value: 3.11.0
       - key: SUNDAY_DEVICE_MODE
         value: desktop
 

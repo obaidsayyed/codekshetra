@@ -4,7 +4,7 @@ WORKDIR /app/sunday
 COPY sunday/package*.json ./
 RUN npm install
 COPY sunday/ ./
-RUN npm run build:renderer
+RUN npm run build
 
 FROM python:3.11-slim
 WORKDIR /app
@@ -19,8 +19,8 @@ COPY . .
 COPY --from=frontend-builder /app/sunday/dist ./sunday/dist
 
 ENV HOST=0.0.0.0
-ENV PORT=8765
+ENV PORT=10000
 
-EXPOSE 8765
+EXPOSE 10000
 CMD ["python", "-m", "app.main", "--server"]
 
