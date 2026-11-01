@@ -154,8 +154,28 @@ def run_companion() -> int:
         scheduler.stop()
 
 
+def run_server():
+    """Runs only the backend REST and event bridge server (headless mode)."""
+    recovery_manager.recover()
+    ollama_client.ensure_running()
+    scheduler.start()
+    start_server_in_background(host="127.0.0.1", port=8765)
+    print("\n=======================================================")
+    print(" SUNDAY Backend AI Engine Server running on http://127.0.0.1:8765")
+    print(" Press Ctrl+C to stop.")
+    print("=======================================================\n")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nStopping backend server...")
+    finally:
+        scheduler.stop()
+
+
 def main():
     parser = argparse.ArgumentParser(description="SUNDAY - Local-First Offline AI Employee")
+    parser.add_argument("--server", action="store_true", help="Run only the backend REST & Event server (headless)")
     parser.add_argument("--gui", action="store_true", help="Launch the primary Desktop 3D Companion application")
     parser.add_argument("--legacy-gui", action="store_true", help="Launch the legacy Tkinter GUI instead of 3D companion")
     parser.add_argument("--check", action="store_true", help="Run system integrity checks and exit")
@@ -190,6 +210,10 @@ def main():
         print("SUNDAY running in system tray. Right-click the tray icon to control.")
         tray_app.run()
         scheduler.stop()
+        sys.exit(0)
+
+    if args.server:
+        run_server()
         sys.exit(0)
 
     if args.legacy_gui:
