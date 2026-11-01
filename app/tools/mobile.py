@@ -79,6 +79,45 @@ MOBILE_APP_PACKAGES = {
     "files": {
         "package": "com.google.android.documentsui",
         "display_name": "Files"
+    },
+    "spotify": {
+        "package": "com.spotify.music",
+        "uri_scheme": "spotify://",
+        "display_name": "Spotify"
+    },
+    "chrome": {
+        "package": "com.android.chrome",
+        "display_name": "Google Chrome"
+    },
+    "notes": {
+        "package": "com.google.android.keep",
+        "uri_scheme": "googlekeep://",
+        "display_name": "Notes"
+    },
+    "keep": {
+        "package": "com.google.android.keep",
+        "uri_scheme": "googlekeep://",
+        "display_name": "Google Keep"
+    },
+    "telegram": {
+        "package": "org.telegram.messenger",
+        "uri_scheme": "tg://",
+        "display_name": "Telegram"
+    },
+    "instagram": {
+        "package": "com.instagram.android",
+        "uri_scheme": "instagram://",
+        "display_name": "Instagram"
+    },
+    "twitter": {
+        "package": "com.twitter.android",
+        "uri_scheme": "twitter://",
+        "display_name": "Twitter / X"
+    },
+    "x": {
+        "package": "com.twitter.android",
+        "uri_scheme": "twitter://",
+        "display_name": "X"
     }
 }
 

@@ -137,6 +137,21 @@
   color: #fff;
 }
 
+.chat-controls button.mute-btn {
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.chat-controls button.mute-btn.is-muted {
+  background: #f05d5e;
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.chat-controls button.mute-btn.is-muted:hover {
+  background: #d94546;
+  color: #fff;
+}
+
 .chat-controls button:active {
   transform: translate(1px, 1px);
   box-shadow: none;

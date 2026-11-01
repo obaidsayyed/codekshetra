@@ -5,6 +5,7 @@ import type { DesktopManager } from "./desktopManager";
 import type { IntegrationHub } from "./integration";
 import type { SettingsStore } from "./settingsStore";
 import { isTrustedSender } from "./windowManager";
+import { setVoiceMute, getVoiceMute } from "./pythonBridge";
 
 /**
  * Every IPC channel, with sender checks and payload validation. Privileged
@@ -108,5 +109,22 @@ export function registerIpc(ctx: IpcContext): void {
   ipcMain.handle(IPC.panelUserMessage, (e, text: unknown) => {
     if (!trusted(e) || typeof text !== "string") return { delivered: false };
     return ctx.hub.receiveUserMessage(text.slice(0, MAX_PANEL_MESSAGE_LENGTH));
+  });
+
+  // voice commands mute / unmute --------------------------------------------------------
+  ipcMain.handle(IPC.voiceMute, async (e, muted: unknown) => {
+    if (!trusted(e)) return { success: false, muted: false };
+    const res = await setVoiceMute(typeof muted === "boolean" ? muted : undefined);
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) {
+        w.webContents.send(IPC.voiceMuteChanged, res.muted);
+      }
+    }
+    return res;
+  });
+
+  ipcMain.handle(IPC.voiceGetMute, async (e) => {
+    if (!trusted(e)) return false;
+    return await getVoiceMute();
   });
 }

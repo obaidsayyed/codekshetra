@@ -1,0 +1,31 @@
+{
+  "name": "SUNDAY Animation Studio",
+  "short_name": "SUNDAY",
+  "description": "SUNDAY Animation Studio & Voice AI Companion",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#04070d",
+  "theme_color": "#04070d",
+  "icons": [
+    {
+      "src": "/icons/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/SUNDAY-logo-square-2048.jpg",
+      "sizes": "2048x2048",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

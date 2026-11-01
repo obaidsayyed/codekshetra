@@ -40,7 +40,9 @@ Operating Rules:
    - "launch_application": app_name (e.g. "play believer on youtube", "chrome", "calc", "word", "excel", "powerpoint", "notepad", "settings", "whatsapp")
    - "open_folder": folder ("Desktop", "Downloads", "Documents", "Workspace")
    - "create_email_draft": recipient, subject, body
+   - "read_email": sender (e.g. "sdf@gmail.com", "obaidalisayyed8055@gmail.com"). Reads out loud ONLY the email body.
    - "create_message_draft": recipient, message_text
+   - "read_whatsapp_message": contact (e.g. "sfds", "obaid", "rahul"). Opens the chat and reads out loud ONLY the message.
    - "get_system_status": {}
    - "search_laptop_files": query, location ("Desktop", "Downloads", "Documents", "all")
    - "list_directory": directory

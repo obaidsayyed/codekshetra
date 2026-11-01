@@ -113,16 +113,25 @@ class VisualOpenAndTypeTool(BaseTool):
                 except (PermissionError, OSError) as pe:
                     audit_logger.warning("Desktop path %s locked or inaccessible (%s). Trying alternate filename...", cand.name, pe)
 
-            # 3. Visually launch Microsoft Word with the document on screen
+            # 3. Visually launch Microsoft Word with the document on screen or mobile app
             target_to_open = desktop_saved_path or output_file_path or workspace_docx
-            try:
-                audit_logger.info("Visually opening Word document on screen via Windows shell: %s", target_to_open)
-                # cmd /c start reliably brings Microsoft Word to the foreground even if already running
-                subprocess.Popen(f'cmd.exe /c start "" "{target_to_open}"', shell=True)
-                typed_live = True
-                time.sleep(1.0)
-            except Exception as e:
-                audit_logger.warning("Could not launch Word document: %s", e)
+            if settings.is_mobile():
+                try:
+                    from app.tools.mobile import mobile_launcher
+                    audit_logger.info("Visually opening Word document in Microsoft Word mobile app: %s", target_to_open)
+                    mobile_launcher.open_document(target_to_open, app="word")
+                    typed_live = True
+                except Exception as e:
+                    audit_logger.warning("Could not launch Word mobile app: %s", e)
+            else:
+                try:
+                    audit_logger.info("Visually opening Word document on screen via Windows shell: %s", target_to_open)
+                    # cmd /c start reliably brings Microsoft Word to the foreground even if already running
+                    subprocess.Popen(f'cmd.exe /c start "" "{target_to_open}"', shell=True)
+                    typed_live = True
+                    time.sleep(1.0)
+                except Exception as e:
+                    audit_logger.warning("Could not launch Word document: %s", e)
 
             # Record active document in conversation memory for follow-ups
             try:

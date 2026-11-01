@@ -157,6 +157,34 @@ class VoiceSession:
             self.tts.speak("SUNDAY stopped. All actions halted.")
             return {"success": True, "status": "stopped", "message": "Stopped by voice."}
 
+        # Check for dismissive phrases (e.g., "no that's it", "thank you", "that's it", "no thanks")
+        dismissive = [
+            "no", "nothing", "that's all", "thats all", "that's it", "thats it",
+            "no that's it", "no thats it", "no that is it", "thank you", "thanks",
+            "no thank you", "no thanks", "nope", "i am good", "im good", "all good",
+            "nothing else", "no more", "ok thats it", "okay thats it", "ok that's it", "okay that's it",
+            "all done", "we are done", "we're done"
+        ]
+        clean_text = re.sub(r'[^\w\s]', '', text.lower()).strip()
+        for prefix in ["sunday", "hey sunday", "hi sunday", "ok sunday", "okay sunday", "hello sunday"]:
+            if clean_text.startswith(prefix):
+                clean_text = clean_text[len(prefix):].strip()
+
+        if clean_text in dismissive or any(clean_text == d for d in dismissive):
+            self.state = SessionState.SPEAKING
+            closing = "Alright, let me know if you need anything else."
+            self.tts.speak(closing)
+            self.state = SessionState.IDLE
+            self.is_task_executing = False
+            try:
+                from app.server.api_server import event_broker
+                event_broker.emit("character_visibility", visible=False)
+            except Exception:
+                pass
+            if self.on_status_change:
+                self.on_status_change("idle")
+            return {"success": True, "status": "conversational", "spoken_message": closing}
+
         # Check if we were waiting for an approval
         if self.state == SessionState.WAITING_FOR_APPROVAL and self.active_approval_id:
             return self._handle_approval_response(text)
@@ -266,15 +294,28 @@ class VoiceSession:
                         if followup_text:
                             audit_logger.info("Follow-up user utterance: '%s'", followup_text)
                             dismissive = [
-                                "no", "nothing", "that's all", "thats all", "no thank you", "no thanks",
-                                "nope", "i am good", "im good", "all good", "stop", "cancel", "done", "bye", "goodbye"
+                                "no", "nothing", "that's all", "thats all", "that's it", "thats it",
+                                "no that's it", "no thats it", "no that is it", "thank you", "thanks",
+                                "no thank you", "no thanks", "nope", "i am good", "im good", "all good",
+                                "stop", "cancel", "done", "bye", "goodbye", "nothing else", "no more",
+                                "ok thats it", "okay thats it", "ok that's it", "okay that's it",
+                                "all done", "we are done", "we're done"
                             ]
                             clean_ans = re.sub(r'[^\w\s]', '', followup_text.lower()).strip()
-                            if clean_ans in dismissive or any(clean_ans == d for d in dismissive):
+                            is_dismiss = clean_ans in dismissive or any(
+                                clean_ans == d or clean_ans.startswith(d) or clean_ans.endswith(d)
+                                for d in dismissive
+                            )
+                            if is_dismiss:
                                 self.state = SessionState.SPEAKING
                                 closing = "Alright, let me know if you need anything else."
                                 self.tts.speak(closing)
                                 self.state = SessionState.IDLE
+                                try:
+                                    from app.server.api_server import event_broker
+                                    event_broker.emit("character_visibility", visible=False)
+                                except Exception:
+                                    pass
                                 if self.on_status_change:
                                     self.on_status_change("idle")
                                 return {**result, "closing_message": closing}

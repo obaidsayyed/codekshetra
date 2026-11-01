@@ -179,40 +179,27 @@ class BackgroundVoiceListener:
                                             ]
                                             is_wake = any(w in txt_lower for w in wake_triggers)
 
-                                            # Direct commands and action queries
-                                            from app.brain.planner import extract_meeting_time, has_action_intent
-                                            is_direct_command = (
-                                                txt_lower.startswith((
-                                                    "open ", "launch ", "start ", "run ", "play ", "playing ",
-                                                    "draft ", "mail ", "email ", "send ", "write ", "create ", "make ",
-                                                    "check ", "search ", "find ", "calculate ", "remind ", "remember ",
-                                                    "schedule ", "close ", "kill ", "stop ", "who ", "what ", "how ", "tell me "
-                                                ))
-                                                or has_action_intent(txt_lower)
-                                                or any(w in txt_lower for w in [
-                                                    "month-end", "month end", "reconcile", "reconciliation", "gst return", "file gst",
-                                                    "invoice", "spreadsheet", "excel", "word", "essay", "article",
-                                                    "youtube", "spotify", "vlc", "calculator", "battery", "chrome",
-                                                    "gmail", "email"
-                                                ])
-                                                or len(txt_lower.split()) >= 2
-                                            )
-
                                             # Check if user is replying to a recent clarifying question
                                             from app.memory.conversation import conversation_manager
                                             last_bot = conversation_manager.get_last_assistant_turn()
                                             is_answering_question = False
                                             if last_bot and "?" in last_bot.get("content", ""):
                                                 bot_q = last_bot.get("content", "").lower()
-                                                if "meeting" in bot_q and extract_meeting_time(txt_lower):
-                                                    is_answering_question = True
+                                                if "meeting" in bot_q:
+                                                    from app.brain.planner import extract_meeting_time
+                                                    if extract_meeting_time(txt_lower):
+                                                        is_answering_question = True
                                                 elif "invoice" in bot_q and len(txt_lower.split()) <= 6:
                                                     is_answering_question = True
 
-                                            if is_wake or is_direct_command or is_answering_question:
-                                                audit_logger.info("Spoken wake/command detected: '%s'", txt)
+                                            # In standby mode: STRICTLY require the start word 'Sunday'
+                                            # Ambient room conversation without 'Sunday' is ignored
+                                            if is_wake or is_answering_question:
+                                                audit_logger.info("Spoken wake word/command detected: '%s'", txt)
                                                 self._handle_wake(txt)
                                                 break
+                                            else:
+                                                audit_logger.debug("Ambient speech without wake word ignored: '%s'", txt)
 
             except Exception as e:
                 audit_logger.warning("Background voice listener stream exception: %s", e)
@@ -230,6 +217,13 @@ class BackgroundVoiceListener:
 
         if self.on_wake_detected:
             self.on_wake_detected(detected_text)
+
+        # Wake word detected: show character on screen
+        try:
+            from app.server.api_server import event_broker
+            event_broker.emit("character_visibility", visible=True)
+        except Exception:
+            pass
 
         # Reject if already executing
         if voice_session.is_task_executing or workflow_engine.is_busy:

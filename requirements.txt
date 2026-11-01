@@ -1,0 +1,32 @@
+# Core Framework & Validation
+pydantic>=2.7.0
+pydantic-core>=2.18.0
+python-dotenv>=1.0.0
+httpx>=0.27.0
+requests>=2.31.0
+psutil>=5.9.0
+
+# Document & Spreadsheet Processing
+pandas>=2.2.0
+openpyxl>=3.1.0
+python-docx>=1.1.0
+pymupdf>=1.24.0
+pillow>=10.2.0
+
+# Speech, Voice & Audio
+numpy>=1.26.0
+scipy>=1.12.0
+sounddevice>=0.5.0
+faster-whisper>=1.0.0
+piper-tts>=1.2.0
+openwakeword>=0.6.0
+onnxruntime>=1.17.0
+
+# Windows Desktop Automation (Installed on Windows, skipped on Linux Render deployment)
+pywin32>=306; sys_platform == "win32"
+pywinauto>=0.6.8; sys_platform == "win32"
+comtypes>=1.4.0; sys_platform == "win32"
+PyAutoGUI>=0.9.54; sys_platform == "win32"
+pyperclip>=1.8.2; sys_platform == "win32"
+pystray>=0.19.5; sys_platform == "win32"
+

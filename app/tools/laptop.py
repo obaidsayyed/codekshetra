@@ -244,6 +244,10 @@ class OpenFolderTool(BaseTool):
     execution_type = "LOCAL"
 
     def execute(self, folder: str = "Desktop") -> ToolResult:
+        if settings.is_mobile():
+            from app.tools.mobile import mobile_launcher
+            return mobile_launcher.launch("files")
+
         target = Path(folder)
         if not target.is_absolute():
             user_shortcut = Path.home() / folder
@@ -284,10 +288,23 @@ class SystemStatusTool(BaseTool):
 
         # Battery check
         battery_text = "Unknown"
-        battery = psutil.sensors_battery()
-        if battery:
-            status = "Plugged in" if battery.power_plugged else "On battery"
-            battery_text = f"{battery.percent}% ({status})"
+        if settings.is_mobile() and shutil.which("termux-battery-status"):
+            try:
+                import json
+                out = subprocess.check_output(["termux-battery-status"], timeout=2.0)
+                bdata = json.loads(out.decode("utf-8", errors="ignore"))
+                pct = bdata.get("percentage")
+                plugged = bdata.get("plugged")
+                status_str = f"Plugged in ({plugged})" if plugged else "On battery"
+                battery_text = f"{pct}% ({status_str})"
+            except Exception:
+                pass
+
+        if battery_text == "Unknown":
+            battery = psutil.sensors_battery()
+            if battery:
+                status = "Plugged in" if battery.power_plugged else "On battery"
+                battery_text = f"{battery.percent}% ({status})"
 
         summary = (
             f"Battery is at {battery_text}. "

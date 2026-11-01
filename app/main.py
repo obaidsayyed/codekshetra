@@ -155,13 +155,24 @@ def run_companion() -> int:
 
 
 def run_server():
-    """Runs only the backend REST and event bridge server (headless mode)."""
+    """Runs only the backend REST and event bridge server (headless mode for cloud/Render/local)."""
+    import os
+    port = int(os.environ.get("PORT", 8765))
+    host = os.environ.get("HOST", "0.0.0.0")
     recovery_manager.recover()
     ollama_client.ensure_running()
     scheduler.start()
-    start_server_in_background(host="127.0.0.1", port=8765)
+
+    # Try background voice listener if audio hardware is available
+    try:
+        from app.voice.wakeword import background_listener
+        background_listener.start()
+    except Exception as e:
+        audit_logger.warning("Background voice listener not active in server mode: %s", e)
+
+    start_server_in_background(host=host, port=port)
     print("\n=======================================================")
-    print(" SUNDAY Backend AI Engine Server running on http://127.0.0.1:8765")
+    print(f" SUNDAY Backend AI Engine Server running on http://{host}:{port}")
     print(" Press Ctrl+C to stop.")
     print("=======================================================\n")
     try:

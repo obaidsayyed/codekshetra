@@ -44,6 +44,11 @@ const bridge: SundayBridge = {
     onMessage: (cb) => on(IPC.panelMessage, cb),
     sendUserMessage: (text) => ipcRenderer.invoke(IPC.panelUserMessage, text),
   },
+  voice: {
+    setMute: (muted?: boolean) => ipcRenderer.invoke(IPC.voiceMute, muted),
+    getMute: () => ipcRenderer.invoke(IPC.voiceGetMute),
+    onMuteChanged: (cb) => on(IPC.voiceMuteChanged, cb),
+  },
 };
 
 contextBridge.exposeInMainWorld("sunday", bridge);

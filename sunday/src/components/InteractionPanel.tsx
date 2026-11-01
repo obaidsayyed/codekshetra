@@ -5,7 +5,7 @@ import { playSound, setSoundEnabled, setSoundVolume, wireUiSounds } from "../ser
 import type { PanelMessage } from "../shared/ipc";
 import { isNightActive } from "../shared/settings";
 import { SkinPortrait } from "./CustomizationPanel";
-import { IconClose, IconMinus, IconPlug, IconSend } from "./Icons";
+import { IconClose, IconMic, IconMicOff, IconMinus, IconPlug, IconSend } from "./Icons";
 
 /**
  * The floating chat panel — presentation layer only. It shows messages pushed
@@ -23,6 +23,7 @@ export function InteractionPanel() {
   const [messages, setMessages] = useState<PanelMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [connected, setConnected] = useState(false);
+  const [voiceMuted, setVoiceMuted] = useState(false);
   const [noteOpen, setNoteOpen] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -46,10 +47,21 @@ export function InteractionPanel() {
     if (!bridge) return;
     void bridge.getAppInfo().then((i) => setConnected(i.integrationConnected));
     void bridge.panel.getHistory().then(setMessages);
-    return bridge.panel.onMessage((m) => {
+    const unsubMsg = bridge.panel.onMessage((m) => {
       if (m.role === "sunday") playSound("receive");
       setMessages((prev) => [...prev.filter((p) => p.id !== m.id), m]);
     });
+    let unsubMute = () => {};
+    if (bridge.voice) {
+      void bridge.voice.getMute().then(setVoiceMuted);
+      unsubMute = bridge.voice.onMuteChanged((m) => {
+        setVoiceMuted(m);
+      });
+    }
+    return () => {
+      unsubMsg();
+      unsubMute();
+    };
   }, [bridge]);
 
   useEffect(() => {
@@ -77,6 +89,17 @@ export function InteractionPanel() {
     setConnected(res.delivered);
   };
 
+  const toggleMute = async () => {
+    if (!bridge?.voice) return;
+    playSound("click");
+    const nextState = !voiceMuted;
+    setVoiceMuted(nextState);
+    const res = await bridge.voice.setMute(nextState);
+    if (res && typeof res.muted === "boolean") {
+      setVoiceMuted(res.muted);
+    }
+  };
+
   const visible = messages.filter((m) => m.role !== "system" || connected);
 
   return (
@@ -89,9 +112,24 @@ export function InteractionPanel() {
           </div>
           <div className="chat-title">
             <h1>SUNDAY</h1>
-            <span className="conn">{connected ? "Online · ready to help" : "Not connected yet"}</span>
+            <span className="conn">
+              {connected
+                ? voiceMuted
+                  ? "Chat mode only · Mic muted"
+                  : "Online · ready to help"
+                : "Not connected yet"}
+            </span>
           </div>
           <div className="chat-controls no-drag">
+            <button
+              type="button"
+              className={`mute-btn ${voiceMuted ? "is-muted" : ""}`}
+              onClick={toggleMute}
+              aria-label={voiceMuted ? "Unmute voice commands (Turn on mic)" : "Mute voice commands (Chat mode only)"}
+              title={voiceMuted ? "Unmute mic (Voice commands enabled)" : "Mute mic (Chat mode only)"}
+            >
+              {voiceMuted ? <IconMicOff /> : <IconMic />}
+            </button>
             <button type="button" onClick={() => bridge?.minimizeWindow()} aria-label="Minimize" title="Minimize">
               <IconMinus />
             </button>

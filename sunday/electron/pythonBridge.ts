@@ -8,7 +8,10 @@
  * - Synchronizes voice session status (wakeword, STT, TTS) with 3D animations.
  */
 import http from "node:http";
+import { BrowserWindow } from "electron";
+import { IPC } from "../src/shared/ipc";
 import type { IntegrationHub } from "./integration";
+import type { DesktopManager } from "./desktopManager";
 import type { SundayState } from "../src/shared/states";
 
 const BACKEND_HOST = "127.0.0.1";
@@ -22,6 +25,7 @@ interface ApiResponse {
   message?: string;
   error?: string;
   approval_id?: string;
+  muted?: boolean;
 }
 
 interface ServerEvent {
@@ -31,9 +35,11 @@ interface ServerEvent {
   speech?: string;
   role?: "sunday" | "system";
   text?: string;
+  muted?: boolean;
+  visible?: boolean;
 }
 
-function sendToPython(path: string, body?: Record<string, unknown>): Promise<ApiResponse> {
+export function sendToPython(path: string, body?: Record<string, unknown>): Promise<ApiResponse> {
   return new Promise((resolve, reject) => {
     const postData = body ? JSON.stringify(body) : "";
     const options: http.RequestOptions = {
@@ -79,7 +85,27 @@ function sendToPython(path: string, body?: Record<string, unknown>): Promise<Api
   });
 }
 
-export function initPythonBackendBridge(hub: IntegrationHub): void {
+export async function setVoiceMute(muted?: boolean): Promise<{ success: boolean; muted: boolean }> {
+  try {
+    const body = muted !== undefined ? { muted } : {};
+    const res = await sendToPython("/api/voice/mute", body);
+    return { success: true, muted: Boolean(res?.muted) };
+  } catch (err: any) {
+    console.error("[bridge] Failed to toggle voice mute:", err);
+    return { success: false, muted: false };
+  }
+}
+
+export async function getVoiceMute(): Promise<boolean> {
+  try {
+    const res = await sendToPython("/api/voice/mute");
+    return Boolean(res?.muted);
+  } catch {
+    return false;
+  }
+}
+
+export function initPythonBackendBridge(hub: IntegrationHub, desktop?: DesktopManager): void {
   console.log("[bridge] Initializing Python backend connection bridge...");
 
   let lastEventId = 0;
@@ -183,11 +209,30 @@ export function initPythonBackendBridge(hub: IntegrationHub): void {
             if (evt.speech) {
               hub.controller.setSpeech(evt.speech);
             }
+            if (evt.state === "listening" || evt.state === "thinking" || evt.state === "working" || evt.state === "talking") {
+              desktop?.show();
+            }
+          } else if (evt.type === "character_visibility") {
+            if (evt.visible) {
+              console.log("[bridge] Showing Sunday character on wake word trigger.");
+              desktop?.show();
+            } else {
+              console.log("[bridge] Hiding Sunday character on dismissive / standby.");
+              desktop?.hide();
+            }
           } else if (evt.type === "chat_message" && evt.text) {
             hub.panel.pushMessage({
               role: evt.role || "sunday",
               text: evt.text,
             });
+          } else if (evt.type === "voice_mute_change") {
+            const isMuted = Boolean(evt.muted);
+            console.log(`[bridge] Voice mute state updated from backend: ${isMuted}`);
+            for (const win of BrowserWindow.getAllWindows()) {
+              if (!win.isDestroyed()) {
+                win.webContents.send(IPC.voiceMuteChanged, isMuted);
+              }
+            }
           }
         }
       }

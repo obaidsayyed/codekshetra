@@ -88,12 +88,30 @@ class SundayApiHandler(BaseHTTPRequestHandler):
         path = parsed.path
 
         if path == "/api/status":
+            from app.voice.audio_io import audio_io
             self._send_json(200, {
                 "online": True,
                 "version": settings.version,
                 "status": "busy" if workflow_engine.is_busy else "idle",
                 "is_busy": workflow_engine.is_busy,
-                "device_mode": settings.device_mode
+                "device_mode": settings.device_mode,
+                "voice_muted": audio_io.is_muted
+            })
+            return
+
+        if path == "/api/voice/mute":
+            from app.voice.audio_io import audio_io
+            self._send_json(200, {"muted": audio_io.is_muted})
+            return
+
+        if path == "/api/mode":
+            from app.brain.pocketpal_client import pocketpal_client
+            self._send_json(200, {
+                "device_mode": settings.device_mode,
+                "is_mobile": settings.is_mobile(),
+                "pocketpal_url": settings.pocketpal_url,
+                "pocketpal_model": settings.pocketpal_model,
+                "pocketpal_healthy": pocketpal_client.check_health()
             })
             return
 
@@ -103,6 +121,42 @@ class SundayApiHandler(BaseHTTPRequestHandler):
             events = event_broker.get_since(since_val)
             self._send_json(200, {"events": events})
             return
+
+        # Unified single-deployment PWA static file & SPA routing (/talk, /studio, /index.html)
+        dist_dir = settings.base_dir / "sunday" / "dist"
+        if dist_dir.exists() and not path.startswith("/api"):
+            rel_path = path.lstrip("/")
+            file_to_serve = dist_dir / rel_path if rel_path else dist_dir / "index.html"
+            if not file_to_serve.is_file():
+                # SPA client-side routing fallback so /talk, /studio never 404 on refresh
+                file_to_serve = dist_dir / "index.html"
+
+            if file_to_serve.is_file():
+                import mimetypes
+                ctype, _ = mimetypes.guess_type(str(file_to_serve))
+                if not ctype:
+                    if file_to_serve.suffix == ".js":
+                        ctype = "application/javascript"
+                    elif file_to_serve.suffix == ".css":
+                        ctype = "text/css"
+                    elif file_to_serve.suffix == ".json":
+                        ctype = "application/json"
+                    else:
+                        ctype = "text/html"
+                try:
+                    content_bytes = file_to_serve.read_bytes()
+                    self.send_response(200)
+                    self._send_cors()
+                    self.send_header("Content-Type", ctype)
+                    self.send_header("Content-Length", str(len(content_bytes)))
+                    if file_to_serve.name == "sw.js":
+                        self.send_header("Service-Worker-Allowed", "/")
+                        self.send_header("Cache-Control", "public, max-age=0, must-revalidate")
+                    self.end_headers()
+                    self.wfile.write(content_bytes)
+                    return
+                except Exception as e:
+                    audit_logger.warning("Error serving static PWA file %s: %s", file_to_serve, e)
 
         self._send_json(404, {"error": "Endpoint not found"})
 
@@ -121,6 +175,44 @@ class SundayApiHandler(BaseHTTPRequestHandler):
             text = body.get("text", "").strip()
             if not text:
                 self._send_json(400, {"success": False, "error": "Empty message text"})
+                return
+
+            # Check for chat mute/unmute commands
+            if text.lower() in ("mute", "mute voice", "/mute", "mute mic", "mic mute", "turn off voice"):
+                from app.voice.audio_io import audio_io
+                from app.voice.wakeword import background_listener
+                audio_io.set_mute(True)
+                background_listener.pause()
+                event_broker.emit("voice_mute_change", muted=True)
+                msg = "Microphone muted. Chat mode only is now active."
+                event_broker.emit("chat_message", role="system", text=msg)
+                self._send_json(200, {"success": True, "status": "conversational", "spoken_message": msg})
+                return
+
+            if text.lower() in ("unmute", "unmute voice", "/unmute", "unmute mic", "mic unmute", "turn on voice"):
+                from app.voice.audio_io import audio_io
+                from app.voice.wakeword import background_listener
+                audio_io.set_mute(False)
+                background_listener.resume()
+                event_broker.emit("voice_mute_change", muted=False)
+                msg = "Microphone unmuted. Voice commands are active (say 'Hey Sunday')."
+                event_broker.emit("chat_message", role="system", text=msg)
+                self._send_json(200, {"success": True, "status": "conversational", "spoken_message": msg})
+                return
+
+            # Check for device mode switch
+            if text.lower() in ("mobile mode", "set mobile mode", "switch to mobile mode", "/mobile"):
+                settings.device_mode = "mobile"
+                msg = "Switched to Mobile Mode. Native mobile apps and PocketPal AI engine are active."
+                event_broker.emit("chat_message", role="system", text=msg)
+                self._send_json(200, {"success": True, "status": "conversational", "spoken_message": msg})
+                return
+
+            if text.lower() in ("desktop mode", "set desktop mode", "switch to desktop mode", "/desktop"):
+                settings.device_mode = "desktop"
+                msg = "Switched to Desktop Mode. Windows desktop applications and Ollama engine are active."
+                event_broker.emit("chat_message", role="system", text=msg)
+                self._send_json(200, {"success": True, "status": "conversational", "spoken_message": msg})
                 return
 
             audit_logger.info("[bridge] Processing user objective from companion: '%s'", text)
@@ -162,6 +254,41 @@ class SundayApiHandler(BaseHTTPRequestHandler):
                 voice_session.trigger_push_to_talk()
             threading.Thread(target=_run_voice, daemon=True).start()
             self._send_json(200, {"success": True, "message": "Voice listening triggered"})
+            return
+
+        if path == "/api/voice/mute":
+            from app.voice.audio_io import audio_io
+            from app.voice.wakeword import background_listener
+            new_mute = bool(body.get("muted", not audio_io.is_muted))
+            audio_io.set_mute(new_mute)
+            if new_mute:
+                background_listener.pause()
+                event_broker.emit("voice_mute_change", muted=True)
+                event_broker.emit("chat_message", role="system", text="Microphone muted. Chat mode only is active.")
+                audit_logger.info("[bridge] Voice microphone MUTED. Chat-only mode active.")
+            else:
+                background_listener.resume()
+                event_broker.emit("voice_mute_change", muted=False)
+                event_broker.emit("chat_message", role="system", text="Microphone unmuted. Voice commands are active (say 'Hey Sunday').")
+                audit_logger.info("[bridge] Voice microphone UNMUTED. Voice and chat active.")
+            self._send_json(200, {"success": True, "muted": new_mute, "chat_only": new_mute})
+            return
+
+        if path == "/api/mode":
+            new_mode = body.get("mode", "").lower()
+            if new_mode in ("mobile", "android", "phone"):
+                settings.device_mode = "mobile"
+                msg = "SUNDAY switched to Mobile Mode (PocketPal AI + Native App Intents active)."
+            else:
+                settings.device_mode = "desktop"
+                msg = "SUNDAY switched to Desktop Mode (Windows 11 + Chrome/Office active)."
+            event_broker.emit("chat_message", role="system", text=msg)
+            self._send_json(200, {
+                "success": True,
+                "device_mode": settings.device_mode,
+                "is_mobile": settings.is_mobile(),
+                "message": msg
+            })
             return
 
         if path == "/api/stop":

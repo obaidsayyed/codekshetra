@@ -141,7 +141,7 @@ app.whenReady().then(() => {
   desktop = new DesktopManager(s.characterScale);
   hub = new IntegrationHub(sendToPet, (msg: PanelMessage) => broadcast(IPC.panelMessage, msg));
   setIntegrationHost(hub);
-  initPythonBackendBridge(hub);
+  initPythonBackendBridge(hub, desktop);
 
   registerIpc({
     store,
@@ -154,7 +154,9 @@ app.whenReady().then(() => {
   });
   store.onChange(applySettingSideEffects);
 
-  desktop.createPet(s.alwaysOnTop, s.visible);
+  // Background deploy mode starts character hidden until wake word "Sunday" is heard
+  const startHidden = process.argv.includes("--hidden") || process.argv.includes("--background");
+  desktop.createPet(s.alwaysOnTop, startHidden ? false : s.visible);
   if (app.isPackaged && (process.platform === "win32" || process.platform === "darwin")) {
     // keep the OS login item in sync with the stored choice (off by default)
     app.setLoginItemSettings({ openAtLogin: s.startWithWindows });

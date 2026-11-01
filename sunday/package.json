@@ -13,14 +13,16 @@
     "studio:web": "vite --open /#studio",
     "build:renderer": "vite build",
     "build:electron": "node scripts/build-electron.mjs",
-    "build": "npm run typecheck && npm run build:renderer && npm run build:electron",
+    "build": "vite build",
+    "build:desktop": "npm run typecheck && npm run build:renderer && npm run build:electron",
+    "build:all": "npm run typecheck && npm run build:renderer && npm run build:electron",
     "start": "electron .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "npm run build && playwright test",
-    "dist:win": "npm run build && electron-builder --win nsis portable",
-    "dist:dir": "npm run build && electron-builder --win dir"
+    "test:e2e": "npm run build:desktop && playwright test",
+    "dist:win": "npm run build:desktop && electron-builder --win nsis portable",
+    "dist:dir": "npm run build:desktop && electron-builder --win dir"
   },
   "dependencies": {
     "react": "^19.1.0",

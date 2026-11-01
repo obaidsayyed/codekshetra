@@ -15,6 +15,7 @@ from app.tools.documents import (
     CreateSpreadsheetTool, ReadPdfTool
 )
 from app.tools.windows import VisualOpenAndTypeTool
+from app.tools.messaging import ReadEmailTool, ReadWhatsAppTool
 from app.tools.laptop import (
     LaunchAppTool, OpenFolderTool, SystemStatusTool, SearchLaptopFilesTool, ScheduleMeetingTool
 )
@@ -56,7 +57,9 @@ class ToolRegistry:
             ScheduleMeetingTool(),
             ReconcileInvoicesTool(),
             GSTPortalBrowserTool(),
-            RunMonthEndCloseTool()
+            RunMonthEndCloseTool(),
+            ReadEmailTool(),
+            ReadWhatsAppTool()
         ]
         for t in tools:
             self.register(t)

@@ -6,6 +6,7 @@ from .documents import (
     CreateSpreadsheetTool, ReadPdfTool
 )
 from .windows import VisualOpenAndTypeTool
+from .messaging import ReadEmailTool, ReadWhatsAppTool
 from .laptop import LaunchAppTool, OpenFolderTool, SystemStatusTool, SearchLaptopFilesTool
 from .network import is_online, requires_internet
 

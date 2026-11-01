@@ -305,9 +305,27 @@ def has_action_intent(objective: str) -> bool:
         "word", "longer", "rewrite", "make it", "meeting", "appointment", "schedule",
         "reminder", "remind", "month-end", "month end", "reconcile", "reconciliation",
         "gst return", "gstr1", "gstr-1", "file gst", "close month", "overdue",
-        "email", "mail", "gmail", "send", "playing", "opening", "writing", "spotify", "vlc"
+        "email", "mail", "gmail", "send", "playing", "opening", "writing", "spotify", "vlc",
+        "whatsapp", "read mail", "read email", "read whatsapp", "read message", "read "
     ]
     return any(k in obj_l for k in action_keywords)
+
+
+def extract_sender_or_contact(objective: str) -> str:
+    """Extracts sender email address or contact name from reading command."""
+    # 1. Direct email regex
+    m = re.search(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', objective)
+    if m:
+        return m.group(0).strip()
+    # 2. 'from <target>' or 'by <target>'
+    m2 = re.search(r'\b(?:from|by)\s+([a-zA-Z0-9_.@\-]+)', objective, flags=re.IGNORECASE)
+    if m2:
+        return m2.group(1).strip()
+    # 3. Clean string after 'read whatsapp message' or 'read mail'
+    cleaned = re.sub(r'^(?:please\s+)?(?:read|open)\s+(?:the\s+)?(?:whatsapp\s+message|whatsapp|mail|email)\s*(?:from|by)?\s*', '', objective, flags=re.IGNORECASE).strip()
+    if cleaned and len(cleaned) < 50:
+        return cleaned.split()[0]
+    return "recent"
 
 
 def parse_email_details(text: str) -> tuple[str, str, str]:
@@ -499,12 +517,44 @@ class Planner:
                 spoken_summary="Starting month-end close: opening the synthetic GST portal, the reconciliation spreadsheet in Excel, the executive summary in Word, and Gmail on Chrome for Interact AI."
             )
 
+        # Fast path for Reading Email (e.g. 'read mail from sdf@gmail.com', 'read email from X')
+        if any(w in obj_l for w in ["read mail", "read email", "read the mail", "read the email", "check mail from", "check email from"]) or (obj_l.startswith("read ") and ("mail" in obj_l or "email" in obj_l)):
+            sender = extract_sender_or_contact(objective)
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="read_email",
+                        arguments={"sender": sender},
+                        risk_level="R0"
+                    )
+                ],
+                spoken_summary=""  # Dynamically spoken from tool evidence: ONLY the email body!
+            )
+
+        # Fast path for Reading WhatsApp Message (e.g. 'read whatsapp message by sfds', 'read whatsapp from X')
+        if any(w in obj_l for w in ["read whatsapp", "read whats app", "read message by", "read whatsapp message"]) or (obj_l.startswith("read ") and "whatsapp" in obj_l):
+            contact = extract_sender_or_contact(objective)
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="read_whatsapp_message",
+                        arguments={"contact": contact},
+                        risk_level="R0"
+                    )
+                ],
+                spoken_summary=""  # Dynamically spoken from tool evidence: ONLY the message!
+            )
+
         # Fast path for Email Drafting & Compose (e.g. 'draft an email to ombangare469@gmail.com')
         has_email_addr = bool(re.search(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', objective))
-        is_email_intent = has_email_addr or any(w in obj_l for w in [
+        is_email_intent = (has_email_addr or any(w in obj_l for w in [
             "draft an email", "draft email", "compose email", "send an email",
             "send email", "write an email", "mail to", "mail ", "send mail", "draft mail"
-        ])
+        ])) and not any(w in obj_l for w in ["read mail", "read email", "read the mail", "read the email", "read whatsapp"])
         if is_email_intent and not any(w in obj_l for w in ["month-end", "month end", "reconcile", "gst return"]):
             recipient, subject, body = parse_email_details(objective)
             return ExecutionPlan(
@@ -973,12 +1023,44 @@ class Planner:
                 spoken_summary=f"Playing {query} on YouTube now."
             )
 
+        # Read Email (e.g. 'read mail from sdf@gmail.com')
+        if any(w in obj_lower for w in ["read mail", "read email", "read the mail", "read the email", "check mail from", "check email from"]) or (obj_lower.startswith("read ") and ("mail" in obj_lower or "email" in obj_lower)):
+            sender = extract_sender_or_contact(objective)
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="read_email",
+                        arguments={"sender": sender},
+                        risk_level="R0"
+                    )
+                ],
+                spoken_summary=""  # Tool evidence provides ONLY email body
+            )
+
+        # Read WhatsApp Message (e.g. 'read whatsapp message by sfds')
+        if any(w in obj_lower for w in ["read whatsapp", "read whats app", "read message by", "read whatsapp message"]) or (obj_lower.startswith("read ") and "whatsapp" in obj_lower):
+            contact = extract_sender_or_contact(objective)
+            return ExecutionPlan(
+                objective=objective,
+                steps=[
+                    PlannedStep(
+                        step_order=1,
+                        tool_name="read_whatsapp_message",
+                        arguments={"contact": contact},
+                        risk_level="R0"
+                    )
+                ],
+                spoken_summary=""  # Tool evidence provides ONLY message text
+            )
+
         # Email Drafting & Compose (e.g. 'draft an email to ombangare469@gmail.com')
         has_email_addr = bool(re.search(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', objective))
-        is_email_intent = has_email_addr or any(w in obj_lower for w in [
+        is_email_intent = (has_email_addr or any(w in obj_lower for w in [
             "draft an email", "draft email", "compose email", "send an email",
             "send email", "write an email", "mail to", "mail ", "send mail", "draft mail"
-        ])
+        ])) and not any(w in obj_lower for w in ["read mail", "read email", "read the mail", "read the email", "read whatsapp"])
         if is_email_intent and not any(w in obj_lower for w in ["month-end", "month end", "reconcile", "gst return"]):
             recipient, subject, body = parse_email_details(objective)
             return ExecutionPlan(

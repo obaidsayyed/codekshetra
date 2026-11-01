@@ -220,19 +220,27 @@ class CreateInvoiceTool(BaseTool):
             audit_logger.warning("Could not copy files to Desktop: %s", e)
             desktop_xlsx = xlsx_path
 
-        # 5. Visually open Excel on the desktop so the user observes the action live (Claude Cowork style)
-        from app.tools.laptop import get_registered_windows_apps
-        reg_apps = get_registered_windows_apps()
-        excel_bin = reg_apps.get("excel.exe") or reg_apps.get("excel")
-        try:
-            if excel_bin and Path(excel_bin).exists():
-                audit_logger.info("Visually opening Excel on screen: %s", desktop_xlsx)
-                subprocess.Popen([excel_bin, str(desktop_xlsx)])
-            else:
-                audit_logger.info("Opening Excel via Windows shell: %s", desktop_xlsx)
-                subprocess.Popen(f'cmd.exe /c start "" "{desktop_xlsx}"', shell=True)
-        except Exception as e:
-            audit_logger.warning("Could not launch Excel window: %s", e)
+        # 5. Visually open Excel on desktop or mobile app
+        if settings.is_mobile():
+            try:
+                from app.tools.mobile import mobile_launcher
+                audit_logger.info("Visually opening Excel invoice in mobile app: %s", desktop_xlsx)
+                mobile_launcher.open_document(desktop_xlsx, app="excel")
+            except Exception as e:
+                audit_logger.warning("Could not launch mobile Excel app: %s", e)
+        else:
+            from app.tools.laptop import get_registered_windows_apps
+            reg_apps = get_registered_windows_apps()
+            excel_bin = reg_apps.get("excel.exe") or reg_apps.get("excel")
+            try:
+                if excel_bin and Path(excel_bin).exists():
+                    audit_logger.info("Visually opening Excel on screen: %s", desktop_xlsx)
+                    subprocess.Popen([excel_bin, str(desktop_xlsx)])
+                else:
+                    audit_logger.info("Opening Excel via Windows shell: %s", desktop_xlsx)
+                    subprocess.Popen(f'cmd.exe /c start "" "{desktop_xlsx}"', shell=True)
+            except Exception as e:
+                audit_logger.warning("Could not launch Excel window: %s", e)
 
         # 6. Verification: Reopen DOCX and PDF
         reopened_doc = Document(str(docx_path))
@@ -429,12 +437,20 @@ class CreateSpreadsheetTool(BaseTool):
             except Exception as e:
                 audit_logger.warning("Desktop path %s locked or inaccessible (%s). Trying alternate...", cand.name, e)
 
-        # Visually open Excel live on screen via Windows shell
-        try:
-            audit_logger.info("Visually opening spreadsheet in Excel via Windows shell: %s", target_xlsx)
-            subprocess.Popen(f'cmd.exe /c start "" "{target_xlsx}"', shell=True)
-        except Exception as e:
-            audit_logger.warning("Could not launch Excel viewer: %s", e)
+        # Visually open Excel live on screen or mobile app
+        if settings.is_mobile():
+            try:
+                from app.tools.mobile import mobile_launcher
+                audit_logger.info("Visually opening spreadsheet in mobile Excel app: %s", target_xlsx)
+                mobile_launcher.open_document(target_xlsx, app="excel")
+            except Exception as e:
+                audit_logger.warning("Could not launch mobile Excel app: %s", e)
+        else:
+            try:
+                audit_logger.info("Visually opening spreadsheet in Excel via Windows shell: %s", target_xlsx)
+                subprocess.Popen(f'cmd.exe /c start "" "{target_xlsx}"', shell=True)
+            except Exception as e:
+                audit_logger.warning("Could not launch Excel viewer: %s", e)
 
         return ToolResult(
             success=True,

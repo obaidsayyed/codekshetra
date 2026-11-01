@@ -101,6 +101,10 @@ export const IPC = {
   panelUserMessage: "panel:user-message",
   panelHistory: "panel:history",
   appInfo: "app:info",
+  // voice
+  voiceMute: "voice:mute",
+  voiceGetMute: "voice:get-mute",
+  voiceMuteChanged: "voice:mute-changed",
 } as const;
 
 export interface AppInfo {
@@ -142,6 +146,11 @@ export interface SundayBridge {
     getHistory(): Promise<PanelMessage[]>;
     onMessage(cb: (msg: PanelMessage) => void): () => void;
     sendUserMessage(text: string): Promise<{ delivered: boolean }>;
+  };
+  voice: {
+    setMute(muted?: boolean): Promise<{ success: boolean; muted: boolean }>;
+    getMute(): Promise<boolean>;
+    onMuteChanged(cb: (muted: boolean) => void): () => void;
   };
 }
 
